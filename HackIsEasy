@@ -1,43 +1,26 @@
 --[[
-	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+	Red Vs Blue Plane Wars Script
+	Adapted for Hexed GUI Library
+	Author: Theurus_The_Creator
 ]]
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local Window = Rayfield:CreateWindow({
-   Name = "Red Vs Blue Plane Wars🔥",
-   Icon = 0,
-   LoadingTitle = "The Red Vs Blie Plane Wars Script",
-   LoadingSubtitle = "By: Theurus_The_Creator",
-   Theme = "Ocean",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = nil,
-      FileName = "RedVsBluePlaneWars"
-   },
-   Discord = {
-      Enabled = true,
-      Invite = "85cMYuy4J",
-      RememberJoins = true
-   },
-   KeySystem = false,
-   KeySettings = {
-      Title = "Key System",
-      Subtitle = "To Verify your not a bot, Please type: Key1109888",
-      Note = "Key is required to continue!",
-      FileName = "Keyforent1r11",
-      SaveKey = false,
-      GrabKeyFromSite = false,
-      Key = {"Key1109888"}
-   }
+local Hexed = loadstring(game:HttpGet('https://raw.githubusercontent.com/ttheurus-art/Creator/main/Hexed.lua'))()
+
+local Window = Hexed:CreateWindow({
+	Name = "Red Vs Blue Plane Wars🔥",
+	Theme = "Ocean",
+	Position = "TopCenter",
+	ConfigurationSaving = {
+		Enabled = true,
+		FolderName = nil,
+		FileName = "RedVsBluePlaneWars"
+	}
 })
 
 -- CREATE MAIN TAB
-local MainTab = Window:CreateTab("Teleport", 4483362458)
+local MainTab = Window:CreateTab("Teleport", 0)
 
 -- Create parts
-
 local p = Instance.new("Part")
 p.Size = Vector3.new(15, 3, 15)
 p.Position = Vector3.new(-2242, 457, -1774)
@@ -78,84 +61,99 @@ p4.CanCollide = true
 p4.Transparency = 0.3
 p4.Parent = workspace
 
-
--- 218, 3, -2895 red base
--- 250, 1, -642 blue base
--- 334, 288, -1795 middle island
--- 157, 3, -1804 weather machine
 -- Create buttons
+local IslandsSection = MainTab:CreateSection("Islands")
+
 local Button = MainTab:CreateButton({
-   Name = "Tp To Flag (island 1)",
-   Callback = function()
-      local player = game.Players.LocalPlayer
-      local character = player.Character or player.CharacterAdded:Wait()
-      character:PivotTo(CFrame.new(-2242, 460, -1774))
-   end,
+	Name = "Tp To Flag (island 1)",
+	Description = "Teleport to island 1",
+	Callback = function()
+		local player = game.Players.LocalPlayer
+		local character = player.Character or player.CharacterAdded:Wait()
+		character:PivotTo(CFrame.new(-2242, 460, -1774))
+		Hexed.Notify("Teleported", "Moved to Island 1!", 2)
+	end,
 })
 
 local Button = MainTab:CreateButton({
-   Name = "Tp To Flag (island 2)",
-   Callback = function()
-      local player = game.Players.LocalPlayer
-      local character = player.Character or player.CharacterAdded:Wait()
-      character:PivotTo(CFrame.new(-1010, 510, -1810))
-   end,
+	Name = "Tp To Flag (island 2)",
+	Description = "Teleport to island 2",
+	Callback = function()
+		local player = game.Players.LocalPlayer
+		local character = player.Character or player.CharacterAdded:Wait()
+		character:PivotTo(CFrame.new(-1010, 510, -1810))
+		Hexed.Notify("Teleported", "Moved to Island 2!", 2)
+	end,
 })
 
 local Button = MainTab:CreateButton({
-   Name = "Tp To Flag (island 3)",
-   Callback = function()
-      local player = game.Players.LocalPlayer
-      local character = player.Character or player.CharacterAdded:Wait()
-      character:PivotTo(CFrame.new(1529, 380, -1726))
-   end,
+	Name = "Tp To Flag (island 3)",
+	Description = "Teleport to island 3",
+	Callback = function()
+		local player = game.Players.LocalPlayer
+		local character = player.Character or player.CharacterAdded:Wait()
+		character:PivotTo(CFrame.new(1529, 380, -1726))
+		Hexed.Notify("Teleported", "Moved to Island 3!", 2)
+	end,
 })
 
 local Button = MainTab:CreateButton({
-   Name = "Tp To Flag (island 4)",
-   Callback = function()
-      local player = game.Players.LocalPlayer
-      local character = player.Character or player.CharacterAdded:Wait()
-      character:PivotTo(CFrame.new(2796, 246, -1741))
-   end,
+	Name = "Tp To Flag (island 4)",
+	Description = "Teleport to island 4",
+	Callback = function()
+		local player = game.Players.LocalPlayer
+		local character = player.Character or player.CharacterAdded:Wait()
+		character:PivotTo(CFrame.new(2796, 246, -1741))
+		Hexed.Notify("Teleported", "Moved to Island 4!", 2)
+	end,
 })
 
-local MainSection = MainTab:CreateSection("Base")
+local BaseSection = MainTab:CreateSection("Base")
 
 local Button = MainTab:CreateButton({
-   Name = "Tp to Blue Base",
-   Callback = function()
-      local player = game.Players.LocalPlayer
-      local character = player.Character or player.CharacterAdded:Wait()
-      character:PivotTo(CFrame.new(218, 3, -2895))
-   end,
-})
-
-local Button = MainTab:CreateButton({
-   Name = "Tp to Red Base",
-   Callback = function()
-      local player = game.Players.LocalPlayer
-      local character = player.Character or player.CharacterAdded:Wait()
-      character:PivotTo(CFrame.new(250, 1, -642))
-   end,
-})
-
-local MainSection = MainTab:CreateSection("others")
-
-local Button = MainTab:CreateButton({
-   Name = "Tp to middle island",
-   Callback = function()
-      local player = game.Players.LocalPlayer
-      local character = player.Character or player.CharacterAdded:Wait()
-      character:PivotTo(CFrame.new(334, 288, -1795))
-   end,
+	Name = "Tp to Blue Base",
+	Description = "Teleport to blue team base",
+	Callback = function()
+		local player = game.Players.LocalPlayer
+		local character = player.Character or player.CharacterAdded:Wait()
+		character:PivotTo(CFrame.new(218, 3, -2895))
+		Hexed.Notify("Teleported", "Moved to Blue Base!", 2)
+	end,
 })
 
 local Button = MainTab:CreateButton({
-   Name = "Tp to weather machine",
-   Callback = function()
-      local player = game.Players.LocalPlayer
-      local character = player.Character or player.CharacterAdded:Wait()
-      character:PivotTo(CFrame.new(157, 3, -1804))
-   end,
+	Name = "Tp to Red Base",
+	Description = "Teleport to red team base",
+	Callback = function()
+		local player = game.Players.LocalPlayer
+		local character = player.Character or player.CharacterAdded:Wait()
+		character:PivotTo(CFrame.new(250, 1, -642))
+		Hexed.Notify("Teleported", "Moved to Red Base!", 2)
+	end,
 })
+
+local OthersSection = MainTab:CreateSection("Others")
+
+local Button = MainTab:CreateButton({
+	Name = "Tp to middle island",
+	Description = "Teleport to middle island",
+	Callback = function()
+		local player = game.Players.LocalPlayer
+		local character = player.Character or player.CharacterAdded:Wait()
+		character:PivotTo(CFrame.new(334, 288, -1795))
+		Hexed.Notify("Teleported", "Moved to Middle Island!", 2)
+	end,
+})
+
+local Button = MainTab:CreateButton({
+	Name = "Tp to weather machine",
+	Description = "Teleport to weather machine",
+	Callback = function()
+		local player = game.Players.LocalPlayer
+		local character = player.Character or player.CharacterAdded:Wait()
+		character:PivotTo(CFrame.new(157, 3, -1804))
+		Hexed.Notify("Teleported", "Moved to Weather Machine!", 2)
+	end,
+})
+
+Hexed.Notify("Loaded", "Red Vs Blue Plane Wars Script Loaded!", 5)
