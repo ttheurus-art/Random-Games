@@ -1,0 +1,47 @@
+local Singularity = loadstring(game:HttpGet("https://raw.githubusercontent.com/ttheurus-art/Creator/refs/heads/main/Singularity.lua"))()
+
+-- 1. Membuat Window Utama
+local Window1 = Singularity.CreateWindow({
+    Title = "Test Menu", 
+    Theme = "Dark" 
+})
+
+local p = Instance.new("Part")
+p.Size = Vector3.new(15, 3, 15)
+p.Position = Vector3.new(-2242, 457, -1774)
+p.Anchored = true
+p.CanCollide = true
+p.Transparency = 0.3
+p.Parent = workspace
+
+local p1 = Instance.new("Part")
+p1.Size = Vector3.new(15, 3, 15)
+p1.Position = Vector3.new(2796, 243, -1741)
+p1.Anchored = true
+p1.CanCollide = true
+p1.Transparency = 0.3
+p1.Parent = workspace
+
+local p2 = Instance.new("Part")
+p2.Size = Vector3.new(15, 3, 15)
+p2.Position = Vector3.new(1529, 377, -1726)
+p2.Anchored = true
+p2.CanCollide = true
+p2.Transparency = 0.3
+p2.Parent = workspace
+
+local p3 = Instance.new("Part")
+p3.Size = Vector3.new(15, 3, 15)
+p3.Position = Vector3.new(-1010, 507, -1810)
+p3.Anchored = true
+p3.CanCollide = true
+p3.Transparency = 0.3
+p3.Parent = workspace
+
+local p4 = Instance.new("Part")
+p4.Size = Vector3.new(15, 3, 15)
+p4.Position = Vector3.new(-1010, 507, -1810)
+p4.Anchored = true
+p4.CanCollide = true
+p4.Transparency = 0.3
+p4.Parent = workspace
