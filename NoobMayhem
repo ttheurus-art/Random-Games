@@ -18,7 +18,11 @@ local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local AllNoobs = workspace:WaitForChild("Allnoobs")
 
-local Camera = workspace.CurrentCamera
+local VirtualInputManager
+
+pcall(function()
+    VirtualInputManager = game:GetService("VirtualInputManager")
+end)
 
 --// SETTINGS
 local Enabled = false
@@ -30,13 +34,6 @@ local OrbitAngle = 0
 local CurrentTarget = nil
 local HeartbeatConnection = nil
 
---// INPUT SERVICE
-local VirtualInputManager
-
-pcall(function()
-    VirtualInputManager = game:GetService("VirtualInputManager")
-end)
-
 --// CAMERA FIX
 local function FixCamera()
     local Character = Player.Character
@@ -45,13 +42,11 @@ local function FixCamera()
     local Humanoid = Character:FindFirstChildOfClass("Humanoid")
     if not Humanoid then return end
 
-    Camera = workspace.CurrentCamera
+    local Camera = workspace.CurrentCamera
 
-    -- Reset camera offset
     Humanoid.CameraOffset = Vector3.zero
 
-    -- Keep camera following character
-    if Camera and Camera.CameraSubject ~= Humanoid then
+    if Camera then
         Camera.CameraSubject = Humanoid
     end
 end
@@ -60,8 +55,6 @@ Player.CharacterAdded:Connect(function()
     task.wait(0.5)
     FixCamera()
 end)
-
-FixCamera()
 
 --// CHARACTER
 local function GetCharacter()
@@ -77,7 +70,7 @@ local function GetCharacter()
     return Character, Humanoid, Root
 end
 
---// NPC CHECK
+--// NPC ROOT
 local function GetNPCRoot(NPC)
     if not NPC or not NPC.Parent then return end
 
@@ -107,14 +100,13 @@ end
 
 --// FIND TARGET
 local function GetTarget()
-    -- Keep current target while alive
     if IsValidTarget(CurrentTarget) then
         return CurrentTarget
     end
 
     CurrentTarget = nil
 
-    -- HealerNoob always gets first priority
+    -- HEALER PRIORITY
     for _, NPC in ipairs(AllNoobs:GetChildren()) do
         if NPC.Name == "HealerNoob" and IsValidTarget(NPC) then
             CurrentTarget = NPC
@@ -122,7 +114,7 @@ local function GetTarget()
         end
     end
 
-    -- Find another available NPC
+    -- OTHER ENEMIES
     for _, NPC in ipairs(AllNoobs:GetChildren()) do
         if IsValidTarget(NPC) then
             CurrentTarget = NPC
@@ -133,6 +125,12 @@ local function GetTarget()
     return nil
 end
 
+--// TELEPORT
+local function TeleportTo(Root, Position)
+    -- Preserve character rotation
+    Root.CFrame = CFrame.new(Position) * Root.CFrame.Rotation
+end
+
 --// POSITION SYSTEM
 local function UpdatePosition(DeltaTime)
     if not Enabled then return end
@@ -140,13 +138,18 @@ local function UpdatePosition(DeltaTime)
     local Character, Humanoid, Root = GetCharacter()
     if not Root then return end
 
-    -- Camera correction
     FixCamera()
 
     local NPC = GetTarget()
-    if not NPC then return end
+
+    -- NO ENEMY: CENTER OF MAP
+    if not NPC then
+        TeleportTo(Root, Vector3.new(0, 20, 0))
+        return
+    end
 
     local NPCRoot = GetNPCRoot(NPC)
+
     if not NPCRoot then
         CurrentTarget = nil
         return
@@ -168,7 +171,7 @@ local function UpdatePosition(DeltaTime)
 
         OrbitAngle += OrbitSpeed * DeltaTime
 
-        local Radius = math.max(Distance, 1)
+        local Radius = Distance
 
         local X = math.cos(OrbitAngle) * Radius
         local Z = math.sin(OrbitAngle) * Radius
@@ -181,7 +184,7 @@ local function UpdatePosition(DeltaTime)
     end
 
     if TargetPosition then
-        Root.Position = TargetPosition
+        TeleportTo(Root, TargetPosition)
     end
 end
 
@@ -189,7 +192,6 @@ end
 local function Start()
     if HeartbeatConnection then
         HeartbeatConnection:Disconnect()
-        HeartbeatConnection = nil
     end
 
     HeartbeatConnection = RunService.Heartbeat:Connect(function(DeltaTime)
@@ -209,8 +211,8 @@ local function Stop()
     CurrentTarget = nil
 end
 
---// CLICK AT GUI POSITION
-local function ClickPosition(Object)
+--// ORDINARY LEFT CLICK
+local function LeftClick(Object)
     if not VirtualInputManager then
         return false
     end
@@ -226,12 +228,14 @@ local function ClickPosition(Object)
     local Y = Position.Y + Size.Y / 2
 
     local Success = pcall(function()
+        -- LEFT MOUSE BUTTON DOWN
         VirtualInputManager:SendMouseButtonEvent(
             X, Y, 0, true, game
         )
 
         task.wait(0.05)
 
+        -- LEFT MOUSE BUTTON UP
         VirtualInputManager:SendMouseButtonEvent(
             X, Y, 0, false, game
         )
@@ -240,7 +244,7 @@ local function ClickPosition(Object)
     return Success
 end
 
---// AUTO CLICK SETUP
+--// AUTO CLICK
 local function GetACTitle()
     local TouchGui = PlayerGui:FindFirstChild("TouchGui")
     local ControlFrame = TouchGui and TouchGui:FindFirstChild("TouchControlFrame")
@@ -248,13 +252,17 @@ local function GetACTitle()
     local ACButton = JumpButton and JumpButton:FindFirstChild("ACButton")
     local Title = ACButton and ACButton:FindFirstChild("title")
 
-    if not Title then return nil, nil end
+    if not Title then
+        return nil, nil
+    end
 
     local Success, Text = pcall(function()
         return Title.Text
     end)
 
-    if not Success then return nil, ACButton end
+    if not Success then
+        return nil, ACButton
+    end
 
     return Text, ACButton
 end
@@ -264,14 +272,14 @@ local function ActivateAuto()
 
     if not ACButton then return false end
 
-    -- Click once first
-    if not ClickPosition(ACButton) then
+    -- FIRST CLICK
+    if not LeftClick(ACButton) then
         return false
     end
 
     task.wait(0.2)
 
-    -- Continue clicking while Auto is OFF
+    -- REPEAT WHILE AUTO IS OFF
     while Enabled do
         Text, ACButton = GetACTitle()
 
@@ -279,7 +287,7 @@ local function ActivateAuto()
             break
         end
 
-        if not ClickPosition(ACButton) then
+        if not LeftClick(ACButton) then
             break
         end
 
@@ -292,8 +300,8 @@ end
 --// EQUIP LINKED SWORD
 local function EquipLinkedSword()
     local BackpackGui = PlayerGui:FindFirstChild("BackpackGui")
-    local Backpack = BackpackGui and BackpackGui:FindFirstChild("Backpack")
-    local Hotbar = Backpack and Backpack:FindFirstChild("Hotbar")
+    local BackpackFrame = BackpackGui and BackpackGui:FindFirstChild("Backpack")
+    local Hotbar = BackpackFrame and BackpackFrame:FindFirstChild("Hotbar")
     local Slot = Hotbar and Hotbar:FindFirstChild("1")
 
     if not Slot then return false end
@@ -305,7 +313,7 @@ local function EquipLinkedSword()
             break
         end
 
-        if not ClickPosition(Slot) then
+        if not LeftClick(Slot) then
             break
         end
 
@@ -328,7 +336,7 @@ local function RunSetup()
     end)
 end
 
---// ZYNZ UI
+--// UI
 MainTab:CreateToggle({
     Name = "Enable System",
     Value = false,
@@ -347,7 +355,6 @@ MainTab:CreateToggle({
             })
         else
             Stop()
-
             FixCamera()
 
             Zynz:Notify({
@@ -361,11 +368,7 @@ MainTab:CreateToggle({
 
 MainTab:CreateDropdown({
     Name = "Position Mode",
-    Options = {
-        "Top",
-        "Bottom",
-        "Orbit"
-    },
+    Options = {"Top", "Bottom", "Orbit"},
     CurrentOption = "Top",
     Callback = function(Value)
         if type(Value) == "table" then
