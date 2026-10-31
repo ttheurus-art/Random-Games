@@ -1,121 +1,187 @@
---// ZYNZ - ALL NPC MAIN CFRAME
+--// ZYNZ NPC POSITION CONTROLLER
 
 --// SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
 local NPCFolder = workspace:WaitForChild("Allnoobs")
 
---// LOAD ZYNZ LIBRARY
+--// LOAD ZYNZ
 local Zynz = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/ttheurus-art/Creator/refs/heads/main/Zynz.luau"
 ))()
 
 --// SETTINGS
 local Enabled = false
-local Radius = 6
-local Height = 0
-local RotationOffset = 0
+local Mode = "Top"
 
-local MainCFrame = CFrame.new()
-local RenderConnection = nil
+local Distance = 3
+local OrbitSpeed = 5
+local OrbitAngle = 0
 
---// GET CHARACTER ROOT
-local function GetCharacterRoot()
+local CurrentNPC = nil
+local Connection = nil
+
+--// CLICK GUI BUTTON ONCE
+local function ClickOnce(Button)
+    if not Button then
+        return false
+    end
+
+    if Button:IsA("GuiButton") then
+        local Success = pcall(function()
+            Button:Activate()
+        end)
+
+        return Success
+    end
+
+    return false
+end
+
+--// INITIAL ACTIONS
+local function PerformEnableActions()
+    task.spawn(function()
+        -- AC Button: click once
+        local TouchGui = PlayerGui:WaitForChild("TouchGui", 5)
+        local TouchFrame = TouchGui and TouchGui:WaitForChild("TouchControlFrame", 5)
+        local JumpButton = TouchFrame and TouchFrame:WaitForChild("JumpButton", 5)
+        local ACButton = JumpButton and JumpButton:WaitForChild("ACButton", 5)
+
+        if ACButton then
+            ClickOnce(ACButton)
+        end
+
+        task.wait(0.15)
+
+        -- Equip Hotbar Slot 1: click once
+        local BackpackGui = PlayerGui:WaitForChild("BackpackGui", 5)
+        local Backpack = BackpackGui and BackpackGui:WaitForChild("Backpack", 5)
+        local Hotbar = Backpack and Backpack:WaitForChild("Hotbar", 5)
+        local Slot1 = Hotbar and Hotbar:WaitForChild("1", 5)
+
+        if Slot1 then
+            ClickOnce(Slot1)
+        end
+    end)
+end
+
+--// CHARACTER
+local function GetCharacter()
     local Character = Player.Character
     if not Character then return nil end
 
-    return Character:FindFirstChild("HumanoidRootPart")
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    local Root = Character:FindFirstChild("HumanoidRootPart")
+
+    if not Humanoid or not Root or Humanoid.Health <= 0 then
+        return nil
+    end
+
+    return Character, Humanoid, Root
 end
 
---// GET NPC ROOT
-local function GetRoot(NPC)
+--// NPC ROOT
+local function GetNPCRoot(NPC)
+    if not NPC then return nil end
+
     return NPC:FindFirstChild("HumanoidRootPart")
         or NPC.PrimaryPart
         or NPC:FindFirstChild("Torso")
 end
 
---// VALID NPC
+--// VALIDATE NPC
 local function IsValidNPC(NPC)
-    if not NPC or not NPC:IsA("Model") then
+    if not NPC or NPC.Parent ~= NPCFolder then
         return false
     end
 
     local Humanoid = NPC:FindFirstChildOfClass("Humanoid")
-    local Root = GetRoot(NPC)
+    local Root = GetNPCRoot(NPC)
 
     return Humanoid ~= nil
         and Humanoid.Health > 0
         and Root ~= nil
 end
 
---// MAIN CFRAME
-local function UpdateMainCFrame()
-    local Root = GetCharacterRoot()
+--// FIND TARGET
+local function GetNextNPC()
+    -- HealerNoob priority
+    local Healer = NPCFolder:FindFirstChild("HealerNoob")
 
-    if not Root then
-        return false
+    if IsValidNPC(Healer) then
+        return Healer
     end
 
-    MainCFrame = Root.CFrame
-    return true
+    -- Other NPCs
+    for _, NPC in ipairs(NPCFolder:GetChildren()) do
+        if NPC.Name ~= "HealerNoob" and IsValidNPC(NPC) then
+            return NPC
+        end
+    end
+
+    return nil
 end
 
---// APPLY ALL NPC CFRAMES
-local function ApplyAllNPCs()
-    local NPCs = {}
-
-    for _, NPC in ipairs(NPCFolder:GetChildren()) do
-        if IsValidNPC(NPC) then
-            table.insert(NPCs, NPC)
-        end
+--// TARGET MANAGER
+local function UpdateTarget()
+    if IsValidNPC(CurrentNPC) then
+        return CurrentNPC
     end
 
-    local Total = #NPCs
+    CurrentNPC = GetNextNPC()
+    OrbitAngle = 0
 
-    if Total == 0 then
-        return
+    return CurrentNPC
+end
+
+--// POSITION SYSTEM
+local function UpdatePosition(DeltaTime)
+    local Character, Humanoid, Root = GetCharacter()
+    if not Root then return end
+
+    local NPC = UpdateTarget()
+    if not NPC then return end
+
+    local NPCRoot = GetNPCRoot(NPC)
+    if not NPCRoot then return end
+
+    local TargetPosition
+
+    if Mode == "Top" then
+        TargetPosition = NPCRoot.Position
+            + Vector3.new(0, Distance, 0)
+
+    elseif Mode == "Bottom" then
+        TargetPosition = NPCRoot.Position
+            - Vector3.new(0, Distance, 0)
+
+    elseif Mode == "Orbit" then
+        OrbitAngle += OrbitSpeed * DeltaTime
+
+        local Radius = math.max(Distance, 1)
+
+        local X = math.cos(OrbitAngle) * Radius
+        local Z = math.sin(OrbitAngle) * Radius
+
+        TargetPosition = NPCRoot.Position
+            + Vector3.new(X, 0, Z)
     end
 
-    for Index, NPC in ipairs(NPCs) do
-        local Root = GetRoot(NPC)
-
-        if Root then
-            local Angle =
-                ((Index - 1) / Total) * math.pi * 2
-                + RotationOffset
-
-            local Offset = CFrame.new(
-                math.cos(Angle) * Radius,
-                Height,
-                math.sin(Angle) * Radius
-            )
-
-            local TargetCFrame = MainCFrame * Offset
-
-            -- Local visual positioning only
-            Root.CFrame = CFrame.lookAt(
-                TargetCFrame.Position,
-                MainCFrame.Position
-            )
-        end
+    if TargetPosition then
+        Root.Position = TargetPosition
     end
 end
 
 --// START
 local function Start()
-    if RenderConnection then
-        return
-    end
+    if Connection then return end
 
-    RenderConnection = RunService.RenderStepped:Connect(function()
-        if not Enabled then
-            return
-        end
-
-        if UpdateMainCFrame() then
-            ApplyAllNPCs()
+    Connection = RunService.Heartbeat:Connect(function(DeltaTime)
+        if Enabled then
+            UpdatePosition(DeltaTime)
         end
     end)
 end
@@ -124,15 +190,17 @@ end
 local function Stop()
     Enabled = false
 
-    if RenderConnection then
-        RenderConnection:Disconnect()
-        RenderConnection = nil
+    if Connection then
+        Connection:Disconnect()
+        Connection = nil
     end
+
+    CurrentNPC = nil
 end
 
 --// ZYNZ WINDOW
 local Window = Zynz:CreateWindow({
-    Name = "NPC Main CFrame",
+    Name = "NPC Position Controller",
     MainTabTheme = "Modern"
 })
 
@@ -140,15 +208,16 @@ local MainTab = Window:CreateTab({
     Name = "Main"
 })
 
---// ENABLE
+--// ENABLE TOGGLE
 MainTab:CreateToggle({
-    Name = "Enable All NPC CFrame",
+    Name = "Enable System",
     Value = false,
 
     Callback = function(Value)
         Enabled = Value
 
         if Value then
+            PerformEnableActions()
             Start()
         else
             Stop()
@@ -156,47 +225,65 @@ MainTab:CreateToggle({
     end
 })
 
---// RADIUS
-MainTab:CreateSlider({
-    Name = "NPC Distance",
-    Range = {1, 30},
-    Value = 6,
-    Increment = 1,
+--// TOP BUTTON
+MainTab:CreateButton({
+    Name = "Top Mode",
 
-    Callback = function(Value)
-        Radius = Value
+    Callback = function()
+        Mode = "Top"
+        OrbitAngle = 0
     end
 })
 
---// HEIGHT
-MainTab:CreateSlider({
-    Name = "NPC Height",
-    Range = {-20, 20},
-    Value = 0,
-    Increment = 1,
+--// BOTTOM BUTTON
+MainTab:CreateButton({
+    Name = "Bottom Mode",
 
-    Callback = function(Value)
-        Height = Value
+    Callback = function()
+        Mode = "Bottom"
+        OrbitAngle = 0
     end
 })
 
---// ROTATION
+--// ORBIT BUTTON
+MainTab:CreateButton({
+    Name = "Orbit Mode",
+
+    Callback = function()
+        Mode = "Orbit"
+        OrbitAngle = 0
+    end
+})
+
+--// DISTANCE SLIDER
 MainTab:CreateSlider({
-    Name = "Rotation Offset",
-    Range = {0, 360},
-    Value = 0,
-    Increment = 5,
+    Name = "Distance (Studs)",
+    Range = {0, 5},
+    Value = 3,
+    Increment = 1,
 
     Callback = function(Value)
-        RotationOffset = math.rad(Value)
+        Distance = Value
+    end
+})
+
+--// ORBIT SPEED
+MainTab:CreateSlider({
+    Name = "Orbit Speed",
+    Range = {1, 15},
+    Value = 5,
+    Increment = 1,
+
+    Callback = function(Value)
+        OrbitSpeed = Value
     end
 })
 
 --// NOTIFICATION
 Zynz:Notify({
-    Name = "NPC Main CFrame",
-    Content = "All NPC local CFrame system loaded.",
+    Name = "NPC Controller",
+    Content = "Controller loaded successfully.",
     Duration = 4
 })
 
-print("Zynz NPC Main CFrame loaded.")
+print("Zynz NPC Position Controller loaded.")
