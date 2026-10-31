@@ -1,0 +1,295 @@
+--// ZYNZ NPC HOVER + AUTO CLICK
+
+--// SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+--// LOAD ZYNZ
+local Zynz = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/ttheurus-art/Creator/refs/heads/main/Zynz.luau"
+))()
+
+--// SETTINGS
+local HoverEnabled = false
+local AutoClick = false
+
+local PositionMode = "Top"
+local Distance = 3
+local Smoothness = 10
+
+local ClickInterval = 0.05
+
+--// NPC FOLDER
+local NPCFolder = workspace:WaitForChild("Allnoobs")
+local CurrentNPC = nil
+
+--// CHARACTER
+local function GetCharacter()
+    local Character = Player.Character
+    if not Character then return end
+
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    local Root = Character:FindFirstChild("HumanoidRootPart")
+
+    if not Humanoid or not Root or Humanoid.Health <= 0 then
+        return
+    end
+
+    return Character, Humanoid, Root
+end
+
+--// NPC CHECK
+local function IsValidNPC(NPC)
+    if not NPC or not NPC.Parent then
+        return false
+    end
+
+    if NPC.Parent ~= NPCFolder then
+        return false
+    end
+
+    local Humanoid = NPC:FindFirstChildOfClass("Humanoid")
+    local Root = NPC:FindFirstChild("HumanoidRootPart")
+        or NPC.PrimaryPart
+        or NPC:FindFirstChild("Torso")
+
+    return Humanoid ~= nil
+        and Humanoid.Health > 0
+        and Root ~= nil
+end
+
+--// NPC ROOT
+local function GetNPCRoot(NPC)
+    if not NPC then return nil end
+
+    return NPC:FindFirstChild("HumanoidRootPart")
+        or NPC.PrimaryPart
+        or NPC:FindFirstChild("Torso")
+end
+
+--// FIND NEXT NPC
+local function GetNextNPC()
+    -- HealerNoob gets priority
+    local Healer = NPCFolder:FindFirstChild("HealerNoob")
+
+    if IsValidNPC(Healer) then
+        return Healer
+    end
+
+    -- Other NPCs
+    for _, NPC in ipairs(NPCFolder:GetChildren()) do
+        if NPC.Name ~= "HealerNoob" and IsValidNPC(NPC) then
+            return NPC
+        end
+    end
+
+    return nil
+end
+
+--// TARGET UPDATE
+local function UpdateTarget()
+    if IsValidNPC(CurrentNPC) then
+        return CurrentNPC
+    end
+
+    CurrentNPC = GetNextNPC()
+    return CurrentNPC
+end
+
+--// HOVER MOVEMENT
+RunService.RenderStepped:Connect(function()
+    if not HoverEnabled then return end
+
+    local Character, Humanoid, CharacterRoot = GetCharacter()
+    if not CharacterRoot then return end
+
+    local NPC = UpdateTarget()
+    if not NPC then return end
+
+    local NPCRoot = GetNPCRoot(NPC)
+    if not NPCRoot then return end
+
+    local Offset = Distance
+
+    if PositionMode == "Bottom" then
+        Offset = -Distance
+    end
+
+    local TargetPosition = NPCRoot.Position + Vector3.new(0, Offset, 0)
+
+    -- Face the NPC
+    local TargetCFrame = CFrame.lookAt(
+        TargetPosition,
+        NPCRoot.Position
+    )
+
+    local Alpha = math.clamp(Smoothness / 20, 0.01, 1)
+
+    CharacterRoot.CFrame = CharacterRoot.CFrame:Lerp(
+        TargetCFrame,
+        Alpha
+    )
+end)
+
+--// AUTO CLICK
+task.spawn(function()
+    while task.wait(ClickInterval) do
+        if AutoClick then
+            local MousePosition = UserInputService:GetMouseLocation()
+
+            pcall(function()
+                VirtualInputManager:SendMouseButtonEvent(
+                    MousePosition.X,
+                    MousePosition.Y,
+                    0,
+                    true,
+                    game,
+                    0
+                )
+
+                VirtualInputManager:SendMouseButtonEvent(
+                    MousePosition.X,
+                    MousePosition.Y,
+                    0,
+                    false,
+                    game,
+                    0
+                )
+            end)
+        end
+    end
+end)
+
+--// ZYNZ WINDOW
+local Window = Zynz:CreateWindow({
+    Name = "NPC Controller",
+    MainTabTheme = "Modern"
+})
+
+local MainTab = Window:CreateTab({
+    Name = "Main"
+})
+
+--// HOVER TOGGLE
+MainTab:CreateToggle({
+    Name = "Enable NPC Hover",
+    Value = false,
+    Callback = function(Value)
+        HoverEnabled = Value
+
+        if not Value then
+            CurrentNPC = nil
+        end
+    end
+})
+
+--// AUTO CLICK TOGGLE
+MainTab:CreateToggle({
+    Name = "Auto Click",
+    Value = false,
+    Callback = function(Value)
+        AutoClick = Value
+    end
+})
+
+--// POSITION DROPDOWN
+MainTab:CreateDropdown({
+    Name = "Hover Position",
+    Options = {"Top", "Bottom"},
+    CurrentOption = "Top",
+    Callback = function(Value)
+        if typeof(Value) == "table" then
+            Value = Value[1]
+        end
+
+        PositionMode = Value
+    end
+})
+
+--// DISTANCE SLIDER
+MainTab:CreateSlider({
+    Name = "Hover Distance",
+    Range = {1, 10},
+    Value = 3,
+    Increment = 1,
+    Callback = function(Value)
+        Distance = Value
+    end
+})
+
+--// SMOOTHNESS SLIDER
+MainTab:CreateSlider({
+    Name = "Movement Smoothness",
+    Range = {1, 20},
+    Value = 10,
+    Increment = 1,
+    Callback = function(Value)
+        Smoothness = Value
+    end
+})
+
+--// MINI AUTO CLICK BUTTON
+local OldGui = PlayerGui:FindFirstChild("ZynzMiniAutoClick")
+if OldGui then
+    OldGui:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZynzMiniAutoClick"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 10
+ScreenGui.Parent = PlayerGui
+
+local MiniButton = Instance.new("TextButton")
+MiniButton.Name = "AutoClickButton"
+MiniButton.Size = UDim2.fromOffset(22, 22)
+MiniButton.Position = UDim2.new(0, 48, 0, 8)
+MiniButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MiniButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+MiniButton.Text = "A"
+MiniButton.TextSize = 12
+MiniButton.Font = Enum.Font.GothamBold
+MiniButton.BorderSizePixel = 0
+MiniButton.Parent = ScreenGui
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 5)
+Corner.Parent = MiniButton
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(90, 90, 90)
+Stroke.Thickness = 1
+Stroke.Parent = MiniButton
+
+local function UpdateMiniButton()
+    if AutoClick then
+        MiniButton.BackgroundColor3 = Color3.fromRGB(40, 125, 75)
+        MiniButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        MiniButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        MiniButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    end
+end
+
+MiniButton.Activated:Connect(function()
+    AutoClick = not AutoClick
+    UpdateMiniButton()
+end)
+
+--// CLEANUP
+Player.CharacterAdded:Connect(function()
+    CurrentNPC = nil
+end)
+
+Zynz:Notify({
+    Name = "NPC Controller",
+    Content = "NPC Hover and Auto Click loaded.",
+    Duration = 4
+})
+
+UpdateMiniButton()
