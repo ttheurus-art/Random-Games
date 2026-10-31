@@ -1,4 +1,14 @@
---// ZYNZ NPC POSITION CONTROLLER
+--// ZYNZ LIBRARY
+local Zynz = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/ttheurus-art/Creator/refs/heads/main/Zynz.luau"
+))()
+
+local Window = Zynz:CreateWindow({
+    Name = "NPC Position System",
+    MainTabTheme = "Modern"
+})
+
+local MainTab = Window:CreateTab({Name = "Main"})
 
 --// SERVICES
 local Players = game:GetService("Players")
@@ -6,118 +16,116 @@ local RunService = game:GetService("RunService")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
-local NPCFolder = workspace:WaitForChild("Allnoobs")
+local AllNoobs = workspace:WaitForChild("Allnoobs")
 
---// LOAD ZYNZ
-local Zynz = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/ttheurus-art/Creator/refs/heads/main/Zynz.luau"
-))()
+local Camera = workspace.CurrentCamera
 
 --// SETTINGS
 local Enabled = false
-local Mode = "Top"
-
+local PositionMode = "Top"
 local Distance = 3
 local OrbitSpeed = 5
 local OrbitAngle = 0
 
-local CurrentNPC = nil
-local Connection = nil
+local CurrentTarget = nil
+local HeartbeatConnection = nil
 
---// CLICK GUI BUTTON ONCE
-local function ClickOnce(Button)
-    if not Button then
-        return false
+--// INPUT SERVICE
+local VirtualInputManager
+
+pcall(function()
+    VirtualInputManager = game:GetService("VirtualInputManager")
+end)
+
+--// CAMERA FIX
+local function FixCamera()
+    local Character = Player.Character
+    if not Character then return end
+
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    if not Humanoid then return end
+
+    Camera = workspace.CurrentCamera
+
+    -- Reset camera offset
+    Humanoid.CameraOffset = Vector3.zero
+
+    -- Keep camera following character
+    if Camera and Camera.CameraSubject ~= Humanoid then
+        Camera.CameraSubject = Humanoid
     end
-
-    if Button:IsA("GuiButton") then
-        local Success = pcall(function()
-            Button:Activate()
-        end)
-
-        return Success
-    end
-
-    return false
 end
 
---// INITIAL ACTIONS
-local function PerformEnableActions()
-    task.spawn(function()
-        -- AC Button: click once
-        local TouchGui = PlayerGui:WaitForChild("TouchGui", 5)
-        local TouchFrame = TouchGui and TouchGui:WaitForChild("TouchControlFrame", 5)
-        local JumpButton = TouchFrame and TouchFrame:WaitForChild("JumpButton", 5)
-        local ACButton = JumpButton and JumpButton:WaitForChild("ACButton", 5)
+Player.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    FixCamera()
+end)
 
-        if ACButton then
-            ClickOnce(ACButton)
-        end
-
-        task.wait(0.15)
-
-        -- Equip Hotbar Slot 1: click once
-        local BackpackGui = PlayerGui:WaitForChild("BackpackGui", 5)
-        local Backpack = BackpackGui and BackpackGui:WaitForChild("Backpack", 5)
-        local Hotbar = Backpack and Backpack:WaitForChild("Hotbar", 5)
-        local Slot1 = Hotbar and Hotbar:WaitForChild("1", 5)
-
-        if Slot1 then
-            ClickOnce(Slot1)
-        end
-    end)
-end
+FixCamera()
 
 --// CHARACTER
 local function GetCharacter()
     local Character = Player.Character
-    if not Character then return nil end
+    if not Character then return end
 
     local Humanoid = Character:FindFirstChildOfClass("Humanoid")
     local Root = Character:FindFirstChild("HumanoidRootPart")
 
-    if not Humanoid or not Root or Humanoid.Health <= 0 then
-        return nil
-    end
+    if not Humanoid or not Root then return end
+    if Humanoid.Health <= 0 then return end
 
     return Character, Humanoid, Root
 end
 
---// NPC ROOT
+--// NPC CHECK
 local function GetNPCRoot(NPC)
-    if not NPC then return nil end
-
-    return NPC:FindFirstChild("HumanoidRootPart")
-        or NPC.PrimaryPart
-        or NPC:FindFirstChild("Torso")
-end
-
---// VALIDATE NPC
-local function IsValidNPC(NPC)
-    if not NPC or NPC.Parent ~= NPCFolder then
-        return false
-    end
+    if not NPC or not NPC.Parent then return end
 
     local Humanoid = NPC:FindFirstChildOfClass("Humanoid")
-    local Root = GetNPCRoot(NPC)
+    if not Humanoid or Humanoid.Health <= 0 then return end
 
-    return Humanoid ~= nil
-        and Humanoid.Health > 0
-        and Root ~= nil
+    local Root =
+        NPC:FindFirstChild("HumanoidRootPart")
+        or NPC.PrimaryPart
+        or NPC:FindFirstChild("Torso")
+
+    if not Root or not Root:IsA("BasePart") then return end
+
+    return Root, Humanoid
+end
+
+--// TARGET VALIDATION
+local function IsValidTarget(NPC)
+    if not NPC then return false end
+    if not NPC.Parent then return false end
+    if not NPC:IsDescendantOf(AllNoobs) then return false end
+
+    local Root, Humanoid = GetNPCRoot(NPC)
+
+    return Root ~= nil and Humanoid ~= nil
 end
 
 --// FIND TARGET
-local function GetNextNPC()
-    -- HealerNoob priority
-    local Healer = NPCFolder:FindFirstChild("HealerNoob")
-
-    if IsValidNPC(Healer) then
-        return Healer
+local function GetTarget()
+    -- Keep current target while alive
+    if IsValidTarget(CurrentTarget) then
+        return CurrentTarget
     end
 
-    -- Other NPCs
-    for _, NPC in ipairs(NPCFolder:GetChildren()) do
-        if NPC.Name ~= "HealerNoob" and IsValidNPC(NPC) then
+    CurrentTarget = nil
+
+    -- HealerNoob always gets first priority
+    for _, NPC in ipairs(AllNoobs:GetChildren()) do
+        if NPC.Name == "HealerNoob" and IsValidTarget(NPC) then
+            CurrentTarget = NPC
+            return NPC
+        end
+    end
+
+    -- Find another available NPC
+    for _, NPC in ipairs(AllNoobs:GetChildren()) do
+        if IsValidTarget(NPC) then
+            CurrentTarget = NPC
             return NPC
         end
     end
@@ -125,40 +133,39 @@ local function GetNextNPC()
     return nil
 end
 
---// TARGET MANAGER
-local function UpdateTarget()
-    if IsValidNPC(CurrentNPC) then
-        return CurrentNPC
-    end
-
-    CurrentNPC = GetNextNPC()
-    OrbitAngle = 0
-
-    return CurrentNPC
-end
-
 --// POSITION SYSTEM
 local function UpdatePosition(DeltaTime)
+    if not Enabled then return end
+
     local Character, Humanoid, Root = GetCharacter()
     if not Root then return end
 
-    local NPC = UpdateTarget()
+    -- Camera correction
+    FixCamera()
+
+    local NPC = GetTarget()
     if not NPC then return end
 
     local NPCRoot = GetNPCRoot(NPC)
-    if not NPCRoot then return end
+    if not NPCRoot then
+        CurrentTarget = nil
+        return
+    end
 
     local TargetPosition
 
-    if Mode == "Top" then
-        TargetPosition = NPCRoot.Position
-            + Vector3.new(0, Distance, 0)
+    if PositionMode == "Top" then
 
-    elseif Mode == "Bottom" then
-        TargetPosition = NPCRoot.Position
-            - Vector3.new(0, Distance, 0)
+        TargetPosition =
+            NPCRoot.Position + Vector3.new(0, Distance, 0)
 
-    elseif Mode == "Orbit" then
+    elseif PositionMode == "Bottom" then
+
+        TargetPosition =
+            NPCRoot.Position - Vector3.new(0, Distance, 0)
+
+    elseif PositionMode == "Orbit" then
+
         OrbitAngle += OrbitSpeed * DeltaTime
 
         local Radius = math.max(Distance, 1)
@@ -166,8 +173,11 @@ local function UpdatePosition(DeltaTime)
         local X = math.cos(OrbitAngle) * Radius
         local Z = math.sin(OrbitAngle) * Radius
 
-        TargetPosition = NPCRoot.Position
-            + Vector3.new(X, 0, Z)
+        TargetPosition = NPCRoot.Position + Vector3.new(
+            X,
+            0,
+            Z
+        )
     end
 
     if TargetPosition then
@@ -177,9 +187,12 @@ end
 
 --// START
 local function Start()
-    if Connection then return end
+    if HeartbeatConnection then
+        HeartbeatConnection:Disconnect()
+        HeartbeatConnection = nil
+    end
 
-    Connection = RunService.Heartbeat:Connect(function(DeltaTime)
+    HeartbeatConnection = RunService.Heartbeat:Connect(function(DeltaTime)
         if Enabled then
             UpdatePosition(DeltaTime)
         end
@@ -188,102 +201,197 @@ end
 
 --// STOP
 local function Stop()
-    Enabled = false
-
-    if Connection then
-        Connection:Disconnect()
-        Connection = nil
+    if HeartbeatConnection then
+        HeartbeatConnection:Disconnect()
+        HeartbeatConnection = nil
     end
 
-    CurrentNPC = nil
+    CurrentTarget = nil
 end
 
---// ZYNZ WINDOW
-local Window = Zynz:CreateWindow({
-    Name = "NPC Position Controller",
-    MainTabTheme = "Modern"
-})
+--// CLICK AT GUI POSITION
+local function ClickPosition(Object)
+    if not VirtualInputManager then
+        return false
+    end
 
-local MainTab = Window:CreateTab({
-    Name = "Main"
-})
+    if not Object or not Object:IsA("GuiObject") then
+        return false
+    end
 
---// ENABLE TOGGLE
+    local Position = Object.AbsolutePosition
+    local Size = Object.AbsoluteSize
+
+    local X = Position.X + Size.X / 2
+    local Y = Position.Y + Size.Y / 2
+
+    local Success = pcall(function()
+        VirtualInputManager:SendMouseButtonEvent(
+            X, Y, 0, true, game
+        )
+
+        task.wait(0.05)
+
+        VirtualInputManager:SendMouseButtonEvent(
+            X, Y, 0, false, game
+        )
+    end)
+
+    return Success
+end
+
+--// AUTO CLICK SETUP
+local function GetACTitle()
+    local TouchGui = PlayerGui:FindFirstChild("TouchGui")
+    local ControlFrame = TouchGui and TouchGui:FindFirstChild("TouchControlFrame")
+    local JumpButton = ControlFrame and ControlFrame:FindFirstChild("JumpButton")
+    local ACButton = JumpButton and JumpButton:FindFirstChild("ACButton")
+    local Title = ACButton and ACButton:FindFirstChild("title")
+
+    if not Title then return nil, nil end
+
+    local Success, Text = pcall(function()
+        return Title.Text
+    end)
+
+    if not Success then return nil, ACButton end
+
+    return Text, ACButton
+end
+
+local function ActivateAuto()
+    local Text, ACButton = GetACTitle()
+
+    if not ACButton then return false end
+
+    -- Click once first
+    if not ClickPosition(ACButton) then
+        return false
+    end
+
+    task.wait(0.2)
+
+    -- Continue clicking while Auto is OFF
+    while Enabled do
+        Text, ACButton = GetACTitle()
+
+        if not ACButton or Text ~= "Auto: OFF" then
+            break
+        end
+
+        if not ClickPosition(ACButton) then
+            break
+        end
+
+        task.wait(0.2)
+    end
+
+    return true
+end
+
+--// EQUIP LINKED SWORD
+local function EquipLinkedSword()
+    local BackpackGui = PlayerGui:FindFirstChild("BackpackGui")
+    local Backpack = BackpackGui and BackpackGui:FindFirstChild("Backpack")
+    local Hotbar = Backpack and Backpack:FindFirstChild("Hotbar")
+    local Slot = Hotbar and Hotbar:FindFirstChild("1")
+
+    if not Slot then return false end
+
+    while Enabled do
+        local Tool = Player.Backpack:FindFirstChild("Linked Sword")
+
+        if not Tool then
+            break
+        end
+
+        if not ClickPosition(Slot) then
+            break
+        end
+
+        task.wait(0.2)
+    end
+
+    return true
+end
+
+--// SETUP
+local function RunSetup()
+    task.spawn(function()
+        if not Enabled then return end
+
+        ActivateAuto()
+
+        if not Enabled then return end
+
+        EquipLinkedSword()
+    end)
+end
+
+--// ZYNZ UI
 MainTab:CreateToggle({
     Name = "Enable System",
     Value = false,
-
     Callback = function(Value)
         Enabled = Value
 
         if Value then
-            PerformEnableActions()
+            FixCamera()
             Start()
+            RunSetup()
+
+            Zynz:Notify({
+                Name = "NPC System",
+                Content = "System enabled.",
+                Duration = 3
+            })
         else
             Stop()
+
+            FixCamera()
+
+            Zynz:Notify({
+                Name = "NPC System",
+                Content = "System disabled.",
+                Duration = 3
+            })
         end
     end
 })
 
---// TOP BUTTON
-MainTab:CreateButton({
-    Name = "Top Mode",
+MainTab:CreateDropdown({
+    Name = "Position Mode",
+    Options = {
+        "Top",
+        "Bottom",
+        "Orbit"
+    },
+    CurrentOption = "Top",
+    Callback = function(Value)
+        if type(Value) == "table" then
+            Value = Value[1]
+        end
 
-    Callback = function()
-        Mode = "Top"
-        OrbitAngle = 0
+        PositionMode = Value
     end
 })
 
---// BOTTOM BUTTON
-MainTab:CreateButton({
-    Name = "Bottom Mode",
-
-    Callback = function()
-        Mode = "Bottom"
-        OrbitAngle = 0
-    end
-})
-
---// ORBIT BUTTON
-MainTab:CreateButton({
-    Name = "Orbit Mode",
-
-    Callback = function()
-        Mode = "Orbit"
-        OrbitAngle = 0
-    end
-})
-
---// DISTANCE SLIDER
 MainTab:CreateSlider({
-    Name = "Distance (Studs)",
+    Name = "Distance",
     Range = {0, 5},
     Value = 3,
     Increment = 1,
-
     Callback = function(Value)
         Distance = Value
     end
 })
 
---// ORBIT SPEED
 MainTab:CreateSlider({
     Name = "Orbit Speed",
     Range = {1, 15},
     Value = 5,
     Increment = 1,
-
     Callback = function(Value)
         OrbitSpeed = Value
     end
 })
-
---// NOTIFICATION
-Zynz:Notify({
-    Name = "NPC Controller",
-    Content = "Controller loaded successfully.",
-    Duration = 4
-})
-
-print("Zynz NPC Position Controller loaded.")
