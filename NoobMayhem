@@ -19,7 +19,6 @@ local PlayerGui = Player:WaitForChild("PlayerGui")
 local AllNoobs = workspace:WaitForChild("Allnoobs")
 
 local VirtualInputManager
-
 pcall(function()
     VirtualInputManager = game:GetService("VirtualInputManager")
 end)
@@ -33,6 +32,7 @@ local OrbitAngle = 0
 
 local CurrentTarget = nil
 local HeartbeatConnection = nil
+local RespawnConnection = nil
 
 --// CAMERA FIX
 local function FixCamera()
@@ -50,11 +50,6 @@ local function FixCamera()
         Camera.CameraSubject = Humanoid
     end
 end
-
-Player.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    FixCamera()
-end)
 
 --// CHARACTER
 local function GetCharacter()
@@ -89,12 +84,10 @@ end
 
 --// TARGET VALIDATION
 local function IsValidTarget(NPC)
-    if not NPC then return false end
-    if not NPC.Parent then return false end
+    if not NPC or not NPC.Parent then return false end
     if not NPC:IsDescendantOf(AllNoobs) then return false end
 
     local Root, Humanoid = GetNPCRoot(NPC)
-
     return Root ~= nil and Humanoid ~= nil
 end
 
@@ -125,10 +118,19 @@ local function GetTarget()
     return nil
 end
 
---// TELEPORT
-local function TeleportTo(Root, Position)
-    -- Preserve character rotation
-    Root.CFrame = CFrame.new(Position) * Root.CFrame.Rotation
+--// TELEPORT AND FACE NPC
+local function TeleportFacing(Root, Position, TargetPosition)
+    local Direction = Vector3.new(
+        TargetPosition.X - Position.X,
+        0,
+        TargetPosition.Z - Position.Z
+    )
+
+    if Direction.Magnitude > 0.001 then
+        Root.CFrame = CFrame.lookAt(Position, Position + Direction)
+    else
+        Root.CFrame = CFrame.new(Position) * Root.CFrame.Rotation
+    end
 end
 
 --// POSITION SYSTEM
@@ -144,12 +146,12 @@ local function UpdatePosition(DeltaTime)
 
     -- NO ENEMY: CENTER OF MAP
     if not NPC then
-        TeleportTo(Root, Vector3.new(0, 20, 0))
+        local CenterPosition = Vector3.new(0, 20, 0)
+        Root.CFrame = CFrame.new(CenterPosition) * Root.CFrame.Rotation
         return
     end
 
     local NPCRoot = GetNPCRoot(NPC)
-
     if not NPCRoot then
         CurrentTarget = nil
         return
@@ -158,33 +160,25 @@ local function UpdatePosition(DeltaTime)
     local TargetPosition
 
     if PositionMode == "Top" then
-
         TargetPosition =
             NPCRoot.Position + Vector3.new(0, Distance, 0)
 
     elseif PositionMode == "Bottom" then
-
         TargetPosition =
             NPCRoot.Position - Vector3.new(0, Distance, 0)
 
     elseif PositionMode == "Orbit" then
-
         OrbitAngle += OrbitSpeed * DeltaTime
 
         local Radius = Distance
-
         local X = math.cos(OrbitAngle) * Radius
         local Z = math.sin(OrbitAngle) * Radius
 
-        TargetPosition = NPCRoot.Position + Vector3.new(
-            X,
-            0,
-            Z
-        )
+        TargetPosition = NPCRoot.Position + Vector3.new(X, 0, Z)
     end
 
     if TargetPosition then
-        TeleportTo(Root, TargetPosition)
+        TeleportFacing(Root, TargetPosition, NPCRoot.Position)
     end
 end
 
@@ -211,15 +205,10 @@ local function Stop()
     CurrentTarget = nil
 end
 
---// ORDINARY LEFT CLICK
+--// LEFT CLICK USING SCREEN COORDINATES
 local function LeftClick(Object)
-    if not VirtualInputManager then
-        return false
-    end
-
-    if not Object or not Object:IsA("GuiObject") then
-        return false
-    end
+    if not VirtualInputManager then return false end
+    if not Object or not Object:IsA("GuiObject") then return false end
 
     local Position = Object.AbsolutePosition
     local Size = Object.AbsoluteSize
@@ -228,23 +217,15 @@ local function LeftClick(Object)
     local Y = Position.Y + Size.Y / 2
 
     local Success = pcall(function()
-        -- LEFT MOUSE BUTTON DOWN
-        VirtualInputManager:SendMouseButtonEvent(
-            X, Y, 0, true, game
-        )
-
+        VirtualInputManager:SendMouseButtonEvent(X, Y, 0, true, game)
         task.wait(0.05)
-
-        -- LEFT MOUSE BUTTON UP
-        VirtualInputManager:SendMouseButtonEvent(
-            X, Y, 0, false, game
-        )
+        VirtualInputManager:SendMouseButtonEvent(X, Y, 0, false, game)
     end)
 
     return Success
 end
 
---// AUTO CLICK
+--// AUTO BUTTON
 local function GetACTitle()
     local TouchGui = PlayerGui:FindFirstChild("TouchGui")
     local ControlFrame = TouchGui and TouchGui:FindFirstChild("TouchControlFrame")
@@ -252,34 +233,24 @@ local function GetACTitle()
     local ACButton = JumpButton and JumpButton:FindFirstChild("ACButton")
     local Title = ACButton and ACButton:FindFirstChild("title")
 
-    if not Title then
-        return nil, nil
-    end
+    if not Title then return nil, nil end
 
     local Success, Text = pcall(function()
         return Title.Text
     end)
 
-    if not Success then
-        return nil, ACButton
-    end
+    if not Success then return nil, ACButton end
 
     return Text, ACButton
 end
 
 local function ActivateAuto()
     local Text, ACButton = GetACTitle()
-
     if not ACButton then return false end
 
-    -- FIRST CLICK
-    if not LeftClick(ACButton) then
-        return false
-    end
-
+    if not LeftClick(ACButton) then return false end
     task.wait(0.2)
 
-    -- REPEAT WHILE AUTO IS OFF
     while Enabled do
         Text, ACButton = GetACTitle()
 
@@ -335,6 +306,40 @@ local function RunSetup()
         EquipLinkedSword()
     end)
 end
+
+--// RE-EQUIP AFTER RESPAWN
+if RespawnConnection then
+    RespawnConnection:Disconnect()
+end
+
+RespawnConnection = Player.CharacterAdded:Connect(function()
+    task.wait(1)
+
+    if not Enabled then return end
+
+    FixCamera()
+
+    task.spawn(function()
+        while Enabled do
+            local BackpackGui = PlayerGui:FindFirstChild("BackpackGui")
+            local BackpackFrame = BackpackGui and BackpackGui:FindFirstChild("Backpack")
+            local Hotbar = BackpackFrame and BackpackFrame:FindFirstChild("Hotbar")
+            local Slot = Hotbar and Hotbar:FindFirstChild("1")
+
+            local Tool = Player.Backpack:FindFirstChild("Linked Sword")
+
+            if not Tool then
+                break
+            end
+
+            if Slot then
+                LeftClick(Slot)
+            end
+
+            task.wait(0.2)
+        end
+    end)
+end)
 
 --// UI
 MainTab:CreateToggle({
