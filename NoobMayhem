@@ -18,11 +18,6 @@ local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local AllNoobs = workspace:WaitForChild("Allnoobs")
 
-local VirtualInputManager
-pcall(function()
-    VirtualInputManager = game:GetService("VirtualInputManager")
-end)
-
 --// SETTINGS
 local Enabled = false
 local PositionMode = "Top"
@@ -32,7 +27,7 @@ local OrbitAngle = 0
 
 local CurrentTarget = nil
 local HeartbeatConnection = nil
-local RespawnConnection = nil
+local SetupRunning = false
 
 --// CAMERA FIX
 local function FixCamera()
@@ -42,10 +37,9 @@ local function FixCamera()
     local Humanoid = Character:FindFirstChildOfClass("Humanoid")
     if not Humanoid then return end
 
-    local Camera = workspace.CurrentCamera
-
     Humanoid.CameraOffset = Vector3.zero
 
+    local Camera = workspace.CurrentCamera
     if Camera then
         Camera.CameraSubject = Humanoid
     end
@@ -59,8 +53,9 @@ local function GetCharacter()
     local Humanoid = Character:FindFirstChildOfClass("Humanoid")
     local Root = Character:FindFirstChild("HumanoidRootPart")
 
-    if not Humanoid or not Root then return end
-    if Humanoid.Health <= 0 then return end
+    if not Humanoid or not Root or Humanoid.Health <= 0 then
+        return
+    end
 
     return Character, Humanoid, Root
 end
@@ -77,7 +72,9 @@ local function GetNPCRoot(NPC)
         or NPC.PrimaryPart
         or NPC:FindFirstChild("Torso")
 
-    if not Root or not Root:IsA("BasePart") then return end
+    if not Root or not Root:IsA("BasePart") then
+        return
+    end
 
     return Root, Humanoid
 end
@@ -88,6 +85,7 @@ local function IsValidTarget(NPC)
     if not NPC:IsDescendantOf(AllNoobs) then return false end
 
     local Root, Humanoid = GetNPCRoot(NPC)
+
     return Root ~= nil and Humanoid ~= nil
 end
 
@@ -118,18 +116,18 @@ local function GetTarget()
     return nil
 end
 
---// TELEPORT AND FACE NPC
+--// FULL 3D FACING
 local function TeleportFacing(Root, Position, TargetPosition)
-    local Direction = Vector3.new(
-        TargetPosition.X - Position.X,
-        0,
-        TargetPosition.Z - Position.Z
-    )
+    local Direction = TargetPosition - Position
 
     if Direction.Magnitude > 0.001 then
-        Root.CFrame = CFrame.lookAt(Position, Position + Direction)
+        Root.CFrame = CFrame.lookAt(
+            Position,
+            TargetPosition,
+            Vector3.yAxis
+        )
     else
-        Root.CFrame = CFrame.new(Position) * Root.CFrame.Rotation
+        Root.CFrame = CFrame.new(Position)
     end
 end
 
@@ -144,14 +142,14 @@ local function UpdatePosition(DeltaTime)
 
     local NPC = GetTarget()
 
-    -- NO ENEMY: CENTER OF MAP
+    -- NO ENEMY: CENTER MAP
     if not NPC then
-        local CenterPosition = Vector3.new(0, 20, 0)
-        Root.CFrame = CFrame.new(CenterPosition) * Root.CFrame.Rotation
+        Root.CFrame = CFrame.new(0, 20, 0) * Root.CFrame.Rotation
         return
     end
 
     local NPCRoot = GetNPCRoot(NPC)
+
     if not NPCRoot then
         CurrentTarget = nil
         return
@@ -160,25 +158,32 @@ local function UpdatePosition(DeltaTime)
     local TargetPosition
 
     if PositionMode == "Top" then
+
         TargetPosition =
             NPCRoot.Position + Vector3.new(0, Distance, 0)
 
     elseif PositionMode == "Bottom" then
+
         TargetPosition =
             NPCRoot.Position - Vector3.new(0, Distance, 0)
 
     elseif PositionMode == "Orbit" then
+
         OrbitAngle += OrbitSpeed * DeltaTime
 
-        local Radius = Distance
-        local X = math.cos(OrbitAngle) * Radius
-        local Z = math.sin(OrbitAngle) * Radius
-
-        TargetPosition = NPCRoot.Position + Vector3.new(X, 0, Z)
+        TargetPosition = NPCRoot.Position + Vector3.new(
+            math.cos(OrbitAngle) * Distance,
+            0,
+            math.sin(OrbitAngle) * Distance
+        )
     end
 
     if TargetPosition then
-        TeleportFacing(Root, TargetPosition, NPCRoot.Position)
+        TeleportFacing(
+            Root,
+            TargetPosition,
+            NPCRoot.Position
+        )
     end
 end
 
@@ -188,11 +193,7 @@ local function Start()
         HeartbeatConnection:Disconnect()
     end
 
-    HeartbeatConnection = RunService.Heartbeat:Connect(function(DeltaTime)
-        if Enabled then
-            UpdatePosition(DeltaTime)
-        end
-    end)
+    HeartbeatConnection = RunService.Heartbeat:Connect(UpdatePosition)
 end
 
 --// STOP
@@ -205,78 +206,68 @@ local function Stop()
     CurrentTarget = nil
 end
 
---// LEFT CLICK USING SCREEN COORDINATES
-local function LeftClick(Object)
-    if not VirtualInputManager then return false end
-    if not Object or not Object:IsA("GuiObject") then return false end
+--// SCREEN COORDINATE INPUT
+-- mouse1click is a mouse-coordinate fallback,
+-- not a verified Android physical touch API.
+local function TouchTapFallback(Object)
+    if not Object or not Object:IsA("GuiObject") then
+        return false
+    end
+
+    if not Object.Visible then return false end
 
     local Position = Object.AbsolutePosition
     local Size = Object.AbsoluteSize
 
+    if Size.X <= 0 or Size.Y <= 0 then
+        return false
+    end
+
     local X = Position.X + Size.X / 2
     local Y = Position.Y + Size.Y / 2
 
-    local Success = pcall(function()
-        VirtualInputManager:SendMouseButtonEvent(X, Y, 0, true, game)
-        task.wait(0.05)
-        VirtualInputManager:SendMouseButtonEvent(X, Y, 0, false, game)
-    end)
+    if type(mouse1click) == "function" then
+        return pcall(function()
+            mouse1click(X, Y)
+        end)
+    end
 
-    return Success
+    return false
 end
 
 --// AUTO BUTTON
-local function GetACTitle()
+local function GetACButton()
     local TouchGui = PlayerGui:FindFirstChild("TouchGui")
     local ControlFrame = TouchGui and TouchGui:FindFirstChild("TouchControlFrame")
     local JumpButton = ControlFrame and ControlFrame:FindFirstChild("JumpButton")
-    local ACButton = JumpButton and JumpButton:FindFirstChild("ACButton")
-    local Title = ACButton and ACButton:FindFirstChild("title")
 
-    if not Title then return nil, nil end
-
-    local Success, Text = pcall(function()
-        return Title.Text
-    end)
-
-    if not Success then return nil, ACButton end
-
-    return Text, ACButton
+    return JumpButton and JumpButton:FindFirstChild("ACButton")
 end
 
 local function ActivateAuto()
-    local Text, ACButton = GetACTitle()
-    if not ACButton then return false end
+    local ACButton = GetACButton()
 
-    if not LeftClick(ACButton) then return false end
+    if not ACButton then return end
+
+    TouchTapFallback(ACButton)
     task.wait(0.2)
 
     while Enabled do
-        Text, ACButton = GetACTitle()
+        ACButton = GetACButton()
 
-        if not ACButton or Text ~= "Auto: OFF" then
+        local Title = ACButton and ACButton:FindFirstChild("title")
+
+        if not Title or Title.Text ~= "Auto: OFF" then
             break
         end
 
-        if not LeftClick(ACButton) then
-            break
-        end
-
+        TouchTapFallback(ACButton)
         task.wait(0.2)
     end
-
-    return true
 end
 
 --// EQUIP LINKED SWORD
 local function EquipLinkedSword()
-    local BackpackGui = PlayerGui:FindFirstChild("BackpackGui")
-    local BackpackFrame = BackpackGui and BackpackGui:FindFirstChild("Backpack")
-    local Hotbar = BackpackFrame and BackpackFrame:FindFirstChild("Hotbar")
-    local Slot = Hotbar and Hotbar:FindFirstChild("1")
-
-    if not Slot then return false end
-
     while Enabled do
         local Tool = Player.Backpack:FindFirstChild("Linked Sword")
 
@@ -284,67 +275,51 @@ local function EquipLinkedSword()
             break
         end
 
-        if not LeftClick(Slot) then
-            break
+        local BackpackGui = PlayerGui:FindFirstChild("BackpackGui")
+        local BackpackFrame = BackpackGui and BackpackGui:FindFirstChild("Backpack")
+        local Hotbar = BackpackFrame and BackpackFrame:FindFirstChild("Hotbar")
+        local Slot = Hotbar and Hotbar:FindFirstChild("1")
+
+        if Slot then
+            TouchTapFallback(Slot)
         end
 
         task.wait(0.2)
     end
-
-    return true
 end
 
 --// SETUP
 local function RunSetup()
-    task.spawn(function()
-        if not Enabled then return end
+    if SetupRunning then return end
 
+    SetupRunning = true
+
+    task.spawn(function()
         ActivateAuto()
 
-        if not Enabled then return end
+        if Enabled then
+            EquipLinkedSword()
+        end
 
-        EquipLinkedSword()
+        SetupRunning = false
     end)
 end
 
---// RE-EQUIP AFTER RESPAWN
-if RespawnConnection then
-    RespawnConnection:Disconnect()
-end
-
-RespawnConnection = Player.CharacterAdded:Connect(function()
+--// RESPAWN
+Player.CharacterAdded:Connect(function()
     task.wait(1)
 
     if not Enabled then return end
 
     FixCamera()
-
-    task.spawn(function()
-        while Enabled do
-            local BackpackGui = PlayerGui:FindFirstChild("BackpackGui")
-            local BackpackFrame = BackpackGui and BackpackGui:FindFirstChild("Backpack")
-            local Hotbar = BackpackFrame and BackpackFrame:FindFirstChild("Hotbar")
-            local Slot = Hotbar and Hotbar:FindFirstChild("1")
-
-            local Tool = Player.Backpack:FindFirstChild("Linked Sword")
-
-            if not Tool then
-                break
-            end
-
-            if Slot then
-                LeftClick(Slot)
-            end
-
-            task.wait(0.2)
-        end
-    end)
+    RunSetup()
 end)
 
 --// UI
 MainTab:CreateToggle({
     Name = "Enable System",
     Value = false,
+
     Callback = function(Value)
         Enabled = Value
 
@@ -360,7 +335,6 @@ MainTab:CreateToggle({
             })
         else
             Stop()
-            FixCamera()
 
             Zynz:Notify({
                 Name = "NPC System",
@@ -375,6 +349,7 @@ MainTab:CreateDropdown({
     Name = "Position Mode",
     Options = {"Top", "Bottom", "Orbit"},
     CurrentOption = "Top",
+
     Callback = function(Value)
         if type(Value) == "table" then
             Value = Value[1]
@@ -389,6 +364,7 @@ MainTab:CreateSlider({
     Range = {0, 5},
     Value = 3,
     Increment = 1,
+
     Callback = function(Value)
         Distance = Value
     end
@@ -399,6 +375,7 @@ MainTab:CreateSlider({
     Range = {1, 15},
     Value = 5,
     Increment = 1,
+
     Callback = function(Value)
         OrbitSpeed = Value
     end
