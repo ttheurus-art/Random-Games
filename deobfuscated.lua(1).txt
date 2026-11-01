@@ -1,1544 +1,804 @@
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local VirtualUser = game:GetService("VirtualUser")
-local LocalPlayer = Players.LocalPlayer
-local function getSafeGuiParent()
-    local success
-    local coreGui
-    if gethui then
-        return gethui()
-    end
-    success, coreGui = pcall(function()
-        return game:GetService("CoreGui")
-    end)
-    if success and coreGui then
-        local FlatIdent_47A9C = 0
-        local pcallTest
-        while true do
-            if FlatIdent_47A9C == 0 then
-                pcallTest = pcall(function()
-                    local FlatIdent_63487 = 0
-                    local t
-                    while true do
-                        if FlatIdent_63487 == 0 then
-                            t = Instance.new("Folder", coreGui)
-                            t:Destroy()
-                            break
-                        end
-                    end
-                end)
-                if pcallTest then
-                    return coreGui
-                end
-                break
-            end
-        end
-    end
-    return LocalPlayer:WaitForChild("PlayerGui")
-end
-local ParentGui = getSafeGuiParent()
-if ParentGui:FindFirstChild("NoobMayhemUI") then
-    ParentGui.NoobMayhemUI:Destroy()
-end
-local WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_URL_HERE"
-local lastSubmissionTime = 0
-local COOLDOWN_TIME = 120
-local httpRequest = (syn and syn.request)
-    or (http and http.request)
-    or http_request
-    or (fluxus and fluxus.request)
-    or request
-local writefile = writefile or (syn and syn.writefile)
-local readfile = readfile or (syn and syn.readfile)
-local isfile = isfile or (syn and syn.isfile)
-_G.HitboxEnabled = false
-_G.HitboxMultiplier = 12
-_G.MagnetEnabled = false
-_G.MagnetDistance = 3
-_G.AFKFarmEnabled = false
-_G.InfiniteDash = false
-_G.InfiniteJump = false
-_G.WalkSpeed = 16
-_G.JumpPower = 50
-_G.AutoSave = false
-_G.AntiAFK = false
-_G.SpinEnabled = false
-_G.ToolOrbitEnabled = false
-local UIControls = {}
-local ThemeStrokes = {}
-local ThemeFills = {}
-local ThemeTexts = {}
-local CurrentThemeColor = Color3.fromRGB(220, 35, 45)
-local activeTabBtn = nil
-local sizePresets = {
-    ["Small (Compact)"] = UDim2.new(0, 440, 0, 270),
-    ["Normal (Default)"] = UDim2.new(0, 520, 0, 320),
-    ["Large (Expanded)"] = UDim2.new(0, 620, 0, 380),
-    ["Extra Large"] = UDim2.new(0, 700, 0, 430),
+--=====================================================================
+-- NoobMayhem (merged build) - PART 1/2
+-- paste PART 2 langsung di bawah ini
+--=====================================================================
+
+local Zynz = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/ttheurus-art/Creator/refs/heads/main/Zynz.luau"
+))()
+
+local Window = Zynz:CreateWindow({
+    Name = "NoobMayhem",
+    MainTabTheme = "Modern"
+})
+
+local MainTab   = Window:CreateTab({Name = "Main"})
+local PlayerTab = Window:CreateTab({Name = "Player"})
+local MiscTab   = Window:CreateTab({Name = "Misc"})
+local FunTab    = Window:CreateTab({Name = "Fun"})
+
+--=====================================================================
+-- services
+--=====================================================================
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UIS              = game:GetService("UserInputService")
+local TeleportService  = game:GetService("TeleportService")
+local VirtualUser      = game:GetService("VirtualUser")
+local HttpService      = game:GetService("HttpService")
+
+local LP = Players.LocalPlayer
+local PG = LP:WaitForChild("PlayerGui")
+
+local AllNoobs = workspace:WaitForChild("Allnoobs", 10) or Instance.new("Folder")
+
+local S = {
+    npcOn = false, posMode = "Top", dist = 3, orbitSpd = 5, orbitAng = 0,
+    npcTarget = nil, npcConn = nil,
+
+    hitbox = false, hitboxMul = 12,
+    magnet = false, magnetDist = 3,
+    dash = false, jump = false,
+    speed = 16, jumpPow = 50,
+
+    afk = false, antiafk = false, afkFloat = nil, afkTarget = nil,
+
+    spin = false, orbit = false, orbitAng2 = 0,
+    animConn = nil, animName = "None",
+
+    autosave = false,
+
+    bigHead = false, rainbow = false,
 }
-local currentSelectedSize = sizePresets["Normal (Default)"]
-local maximizedSize = UDim2.new(0, 720, 0, 450)
-local CONFIG_FILE = "NoobMayhem_Config.json"
-local function saveCurrentConfig()
-    if not writefile then
-        return
-    end
-    local configData = {
-        AutoSave = _G.AutoSave,
-        AntiAFK = _G.AntiAFK,
-        InfiniteDash = _G.InfiniteDash,
-        InfiniteJump = _G.InfiniteJump,
-        MagnetEnabled = _G.MagnetEnabled,
-        MagnetDistance = _G.MagnetDistance,
-        HitboxEnabled = _G.HitboxEnabled,
-        HitboxMultiplier = _G.HitboxMultiplier,
-        WalkSpeed = _G.WalkSpeed,
-        JumpPower = _G.JumpPower,
-        AFKFarmEnabled = _G.AFKFarmEnabled,
-        SpinEnabled = _G.SpinEnabled,
-        ToolOrbitEnabled = _G.ToolOrbitEnabled,
-    }
-    pcall(function()
-        writefile(CONFIG_FILE, HttpService:JSONEncode(configData))
-    end)
+
+--=====================================================================
+-- helper
+--=====================================================================
+local function char()
+    local c = LP.Character
+    if not c then return end
+    local h = c:FindFirstChildOfClass("Humanoid")
+    local r = c:FindFirstChild("HumanoidRootPart")
+    if not h or not r or h.Health <= 0 then return end
+    return c, h, r
 end
-LocalPlayer.Idled:Connect(function()
-    if _G.AntiAFK then
-        local FlatIdent_44839 = 0
-        while true do
-            if FlatIdent_44839 == 0 then
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new(0, 0))
-                break
-            end
+
+local function hrp(m)
+    if not m then return nil end
+    return m:FindFirstChild("HumanoidRootPart")
+        or m:FindFirstChild("Torso")
+        or m:FindFirstChild("UpperTorso")
+end
+
+local function fixCam()
+    local c, h = char()
+    if not h then return end
+    h.CameraOffset = Vector3.zero
+    local cam = workspace.CurrentCamera
+    if cam then cam.CameraSubject = h end
+end
+
+--=====================================================================
+-- NPC system
+--=====================================================================
+local function validNPC(n)
+    if not n or not n.Parent then return false end
+    if not n:IsDescendantOf(AllNoobs) then return false end
+    return hrp(n) ~= nil
+end
+
+local function npcRoot(n)
+    if not n or not n.Parent then return end
+    local h = n:FindFirstChildOfClass("Humanoid")
+    if not h or h.Health <= 0 then return end
+    local r = hrp(n)
+    if not r or not r:IsA("BasePart") then return end
+    return r, h
+end
+
+local function pickNPC()
+    if validNPC(S.npcTarget) then return S.npcTarget end
+    S.npcTarget = nil
+    for _, n in ipairs(AllNoobs:GetChildren()) do
+        if n.Name == "HealerNoob" and validNPC(n) then
+            S.npcTarget = n
+            return n
         end
     end
-end)
-RunService.RenderStepped:Connect(function()
-    if _G.SpinEnabled then
-        local char
-        local hrp
-        local hum
-        char = LocalPlayer.Character
-        hrp = char and char:FindFirstChild("HumanoidRootPart")
-        hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hrp and hum then
-            local FlatIdent_1076E = 0
-            while true do
-                if FlatIdent_1076E == 0 then
-                    hum.AutoRotate = false
-                    hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(35), 0)
-                    break
-                end
-            end
+    for _, n in ipairs(AllNoobs:GetChildren()) do
+        if validNPC(n) then
+            S.npcTarget = n
+            return n
         end
-        break
+    end
+end
+
+local function faceTP(root, pos, lookAt)
+    local d = lookAt - pos
+    if d.Magnitude > 0.001 then
+        root.CFrame = CFrame.lookAt(pos, lookAt, Vector3.yAxis)
     else
-        local char
-        local hum
-        char = LocalPlayer.Character
-        hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum and not hum.AutoRotate then
-            hum.AutoRotate = true
-        end
-        break
-    end
-end)
-local dashConnection = nil
-local function setupInfiniteDash()
-    local FlatIdent_7F35E = 0
-    while true do
-        if FlatIdent_7F35E == 0 then
-            if dashConnection then
-                dashConnection:Disconnect()
-            end
-            dashConnection = RunService.RenderStepped:Connect(function()
-                if _G.InfiniteDash then
-                    pcall(function()
-                        local playerGui
-                        playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-                        if playerGui then
-                            local FlatIdent_2FD19 = 0
-                            local dashScriptObj
-                            while true do
-                                if FlatIdent_2FD19 == 0 then
-                                    dashScriptObj = playerGui:FindFirstChild("Dash")
-                                    if dashScriptObj then
-                                        local amountVal = dashScriptObj:FindFirstChild("amount")
-                                        if amountVal and amountVal:IsA("NumberValue") then
-                                            amountVal.Value = 1
-                                        end
-                                    end
-                                    break
-                                end
-                            end
-                        end
-                        if LocalPlayer:GetAttribute("NoDashing") then
-                            LocalPlayer:SetAttribute("NoDashing", false)
-                        end
-                        break
-                    end)
-                end
-            end)
-            break
-        end
+        root.CFrame = CFrame.new(pos)
     end
 end
-setupInfiniteDash()
-LocalPlayer.CharacterAdded:Connect(function()
-    local FlatIdent_79536 = 0
-    while true do
-        if FlatIdent_79536 == 0 then
-            task.wait(1)
-            setupInfiniteDash()
-            break
-        end
-    end
-end)
-task.spawn(function()
-    local FlatIdent_65290 = 0
-    local orbitAngle
-    while true do
-        if FlatIdent_65290 == 0 then
-            orbitAngle = 0
-            while task.wait() do
-                if _G.ToolOrbitEnabled then
-                    pcall(function()
-                        local char
-                        local hrp
-                        char = LocalPlayer.Character
-                        hrp = char and char:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            local tool
-                            local handle
-                            tool = char:FindFirstChildOfClass("Tool")
-                            handle = tool and (tool:FindFirstChild("Handle") or tool:FindFirstChildOfClass("BasePart"))
-                            if handle then
-                                orbitAngle = orbitAngle + 0.2
-                                local radius = 4.5
-                                local x = math.cos(orbitAngle) * radius
-                                local z = math.sin(orbitAngle) * radius
-                                handle.CFrame = hrp.CFrame
-                                    * CFrame.new(x, 1, z)
-                                    * CFrame.Angles(orbitAngle * 2, orbitAngle * 3, 0)
-                                handle.AssemblyLinearVelocity = Vector3.zero
-                                handle.AssemblyAngularVelocity = Vector3.zero
-                            end
-                            break
-                        end
-                        break
-                    end)
-                end
-            end
-            break
-        end
-    end
-end)
-local animConnection = nil
-local activeAnimName = "None"
-local function stopCustomAnimations()
-    if animConnection then
-        animConnection:Disconnect()
-        animConnection = nil
-    end
-    activeAnimName = "None"
-    local char = LocalPlayer.Character
-    if char then
-        local FlatIdent_3EEE1 = 0
-        while true do
-            if FlatIdent_3EEE1 == 0 then
-                if char:FindFirstChild("Animate") then
-                    char.Animate.Disabled = false
-                end
-                for _, motor in pairs(char:GetDescendants()) do
-                    if motor:IsA("Motor6D") then
-                        motor.Transform = CFrame.identity
-                    end
-                end
-                break
-            end
-        end
-    end
-end
-local function applyViolentAnimation(animType)
-    stopCustomAnimations()
-    activeAnimName = animType
-    local char = LocalPlayer.Character
-    if not char then
+
+local function npcTick(dt)
+    if not S.npcOn then return end
+    local c, h, r = char()
+    if not r then return end
+    fixCam()
+    local n = pickNPC()
+    if not n then
+        r.CFrame = CFrame.new(0, 20, 0) * r.CFrame.Rotation
         return
     end
-    if char:FindFirstChild("Animate") then
-        char.Animate.Disabled = true
+    local nr = npcRoot(n)
+    if not nr then
+        S.npcTarget = nil
+        return
     end
-    local joints = {}
-    for _, obj in pairs(char:GetDescendants()) do
-        if obj:IsA("Motor6D") then
-            joints[obj.Name] = obj
-        end
+
+    local target
+    if S.posMode == "Top" then
+        target = nr.Position + Vector3.new(0, S.dist, 0)
+    elseif S.posMode == "Bottom" then
+        target = nr.Position - Vector3.new(0, S.dist, 0)
+    elseif S.posMode == "Orbit" then
+        S.orbitAng += S.orbitSpd * dt
+        target = nr.Position + Vector3.new(
+            math.cos(S.orbitAng) * S.dist, 0,
+            math.sin(S.orbitAng) * S.dist
+        )
     end
-    local tickTime = 0
-    animConnection = RunService.RenderStepped:Connect(function()
-        local currentChar = LocalPlayer.Character
-        if not currentChar or not currentChar:FindFirstChildOfClass("Humanoid") then
-            local FlatIdent_494DF = 0
-            while true do
-                if FlatIdent_494DF == 0 then
-                    stopCustomAnimations()
-                    return
-                end
-            end
-        end
-        tickTime = tickTime + 0.25
-        if activeAnimName == "1. Violent Spaz" then
-            if joints["Right Shoulder"] then
-                joints["Right Shoulder"].Transform =
-                    CFrame.Angles(math.sin(tickTime * 15) * 3, math.cos(tickTime * 10) * 2, 0)
-            end
-            if joints["Left Shoulder"] then
-                joints["Left Shoulder"].Transform =
-                    CFrame.Angles(math.cos(tickTime * 15) * 3, math.sin(tickTime * 10) * 2, 0)
-            end
-            if joints["Neck"] then
-                joints["Neck"].Transform = CFrame.Angles(math.sin(tickTime * 20), math.cos(tickTime * 15), 0)
-            end
-            if joints["Right Hip"] then
-                joints["Right Hip"].Transform = CFrame.Angles(math.cos(tickTime * 12), 0, 0)
-            end
-            if joints["Left Hip"] then
-                joints["Left Hip"].Transform = CFrame.Angles(math.sin(tickTime * 12), 0, 0)
-            end
-        elseif activeAnimName == "2. 360 Neck Drill" then
-            if joints["Neck"] then
-                joints["Neck"].Transform = CFrame.Angles(0, tickTime * 12, 0)
-            end
-            if joints["Right Shoulder"] then
-                joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(90), 0, 0)
-            end
-            if joints["Left Shoulder"] then
-                joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(90), 0, 0)
-            end
-            break
-        elseif activeAnimName == "3. Broken Spine Arch" then
-            if joints["RootJoint"] then
-                joints["RootJoint"].Transform = CFrame.Angles(math.rad(-85), 0, 0)
-            end
-            if joints["Neck"] then
-                joints["Neck"].Transform = CFrame.Angles(math.rad(90), 0, 0)
-            end
-            if joints["Right Shoulder"] then
-                joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(180), 0, 0)
-            end
-            if joints["Left Shoulder"] then
-                joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(180), 0, 0)
-            end
-        elseif activeAnimName == "4. T-Pose Vibrator" then
-            if joints["Right Shoulder"] then
-                joints["Right Shoulder"].Transform = CFrame.Angles(0, 0, math.rad(90) + (math.sin(tickTime * 30) * 0.4))
-            end
-            if joints["Left Shoulder"] then
-                joints["Left Shoulder"].Transform = CFrame.Angles(0, 0, math.rad(-90) - (math.sin(tickTime * 30) * 0.4))
-            end
-            if joints["RootJoint"] then
-                joints["RootJoint"].Transform = CFrame.Angles(0, tickTime * 25, 0)
-            end
-            break
-        elseif activeAnimName == "5. Faceplant Floor Slither" then
-            if joints["RootJoint"] then
-                joints["RootJoint"].Transform = CFrame.Angles(math.rad(90), math.sin(tickTime * 10) * 1.5, 0)
-            end
-            if joints["Neck"] then
-                joints["Neck"].Transform = CFrame.Angles(math.rad(-45), 0, 0)
-            end
-            if joints["Right Shoulder"] then
-                joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(-90), 0, 0)
-            end
-            if joints["Left Shoulder"] then
-                joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(-90), 0, 0)
-            end
-        end
+
+    if target then faceTP(r, target, nr.Position) end
+end
+
+local function startNPC()
+    if S.npcConn then S.npcConn:Disconnect() end
+    S.npcConn = RunService.Heartbeat:Connect(npcTick)
+end
+
+local function stopNPC()
+    if S.npcConn then
+        S.npcConn:Disconnect()
+        S.npcConn = nil
+    end
+    S.npcTarget = nil
+end
+
+--=====================================================================
+-- hitbox
+--=====================================================================
+local function isTool(t)
+    if not t or not t:IsA("Tool") then return false end
+    return t:FindFirstChild("Handle") ~= nil
+        or t:FindFirstChildOfClass("BasePart") ~= nil
+end
+
+local function updateHitbox(t)
+    if not isTool(t) then return end
+    local h = t:FindFirstChild("Handle") or t:FindFirstChildOfClass("BasePart")
+    if not h then return end
+    if S.orbit then return end
+
+    if S.hitbox or S.afk then
+        local sz = math.min(S.hitboxMul, 15)
+        h.Size = Vector3.new(sz, sz, sz)
+        h.Transparency = 0.8
+        h.CanCollide = false
+        h.Massless = true
+    else
+        h.Size = Vector3.new(2, 2, 2)
+        h.Transparency = 0
+    end
+end
+
+local function refreshHitbox()
+    local c = LP.Character
+    if not c then return end
+    for _, t in ipairs(c:GetChildren()) do
+        updateHitbox(t)
+    end
+end
+
+local function bindChar(c)
+    c.ChildAdded:Connect(function(x)
+        if x:IsA("Tool") then updateHitbox(x) end
     end)
+    for _, x in ipairs(c:GetChildren()) do
+        if x:IsA("Tool") then updateHitbox(x) end
+    end
 end
-local weaponList = {
-    Axe = true,
-    Apocalypse = true,
-    Baguette = true,
-    ["Ban Hammer"] = true,
-    ["Boxing Glove"] = true,
-    Darkheart = true,
-    ["Fire and Ice"] = true,
-    Firebrand = true,
-    Frostsabre = true,
-    Katana = true,
-    ["Linked Sword"] = true,
-    Longsword = true,
-    Machete = true,
-    Periastron = true,
-    Rapier = true,
-    Reaper = true,
-    Venomshank = true,
-    ["Void Claws"] = true,
-}
-local function isSword(tool)
-    return tool and tool:IsA("Tool") and ((weaponList[tool.Name] == true) or true)
-end
-local function updateToolHitbox(tool)
-    if isSword(tool) then
-        local FlatIdent_8B523 = 0
-        local handle
-        while true do
-            if FlatIdent_8B523 == 0 then
-                handle = tool:FindFirstChild("Handle") or tool:FindFirstChildOfClass("BasePart")
-                if handle and not _G.ToolOrbitEnabled then
-                    if _G.HitboxEnabled or _G.AFKFarmEnabled then
-                        local size
-                        size = math.min(_G.HitboxMultiplier, 15)
-                        handle.Size = Vector3.new(size, size, size)
-                        handle.Transparency = 0.8
-                        handle.CanCollide = false
-                        handle.Massless = true
-                        break
-                    else
-                        local FlatIdent_6C033 = 0
-                        while true do
-                            if 0 == FlatIdent_6C033 then
-                                handle.Size = Vector3.new(2, 2, 2)
-                                handle.Transparency = 0
-                                break
+
+if LP.Character then bindChar(LP.Character) end
+LP.CharacterAdded:Connect(bindChar)
+
+--=====================================================================
+-- magnet
+--=====================================================================
+task.spawn(function()
+    while task.wait(0.1) do
+        if S.magnet and not S.afk then
+            pcall(function()
+                local c, h, myRoot = char()
+                if not myRoot then return end
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("Humanoid") and obj.Health > 0 then
+                        local m = obj.Parent
+                        if m and m ~= c then
+                            local er = hrp(m)
+                            if er and not m:FindFirstChildOfClass("ForceField")
+                                and not er.Anchored then
+                                er.CFrame = myRoot.CFrame * CFrame.new(0, 0, -S.magnetDist)
+                                er.AssemblyLinearVelocity = Vector3.zero
+                                er.AssemblyAngularVelocity = Vector3.zero
                             end
                         end
                     end
                 end
-                break
-            end
-        end
-    end
-end
-local function setupCharacter(character)
-    local FlatIdent_5B2CE = 0
-    while true do
-        if FlatIdent_5B2CE == 0 then
-            character.ChildAdded:Connect(function(child)
-                if child:IsA("Tool") then
-                    updateToolHitbox(child)
-                end
             end)
-            for _, item in pairs(character:GetChildren()) do
-                if item:IsA("Tool") then
-                    updateToolHitbox(item)
-                end
-            end
-            break
         end
     end
+end)
+
+--=====================================================================
+-- NoobMayhem - PART 2/2
+-- paste ini LANGSUNG di bawah PART 1
+--=====================================================================
+
+--=====================================================================
+-- dash
+--=====================================================================
+local dashConn = nil
+local function setupDash()
+    if dashConn then dashConn:Disconnect() end
+    dashConn = RunService.RenderStepped:Connect(function()
+        if not S.dash then return end
+        pcall(function()
+            local g = LP:FindFirstChild("PlayerGui")
+            local d = g and g:FindFirstChild("Dash")
+            if d then
+                local a = d:FindFirstChild("amount")
+                if a and a:IsA("NumberValue") then a.Value = 1 end
+            end
+            if LP:GetAttribute("NoDashing") then
+                LP:SetAttribute("NoDashing", false)
+            end
+        end)
+    end)
 end
-if LocalPlayer.Character then
-    setupCharacter(LocalPlayer.Character)
-end
-LocalPlayer.CharacterAdded:Connect(setupCharacter)
-local function getEnemyHRP(model)
-    if not model then
-        return nil
-    end
-    return model:FindFirstChild("HumanoidRootPart")
-        or model:FindFirstChild("Torso")
-        or model:FindFirstChild("UpperTorso")
-end
+setupDash()
+LP.CharacterAdded:Connect(function()
+    task.wait(1)
+    setupDash()
+end)
+
+--=====================================================================
+-- infinite jump
+--=====================================================================
+UIS.JumpRequest:Connect(function()
+    if not S.jump then return end
+    local c, h = char()
+    if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+end)
+
+--=====================================================================
+-- speed / jump power
+--=====================================================================
 task.spawn(function()
     while task.wait(0.2) do
         pcall(function()
-            local char
-            local hum
-            char = LocalPlayer.Character
-            hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                local FlatIdent_8BC55 = 0
-                while true do
-                    if FlatIdent_8BC55 == 0 then
-                        if _G.WalkSpeed then
-                            hum.WalkSpeed = _G.WalkSpeed
-                        end
-                        if _G.JumpPower then
-                            if hum.UseJumpPower then
-                                hum.JumpPower = _G.JumpPower
-                            else
-                                hum.JumpHeight = _G.JumpPower / 3.5
-                            end
-                        end
-                        break
-                    end
+            local c, h = char()
+            if h then
+                h.WalkSpeed = S.speed
+                if h.UseJumpPower then
+                    h.JumpPower = S.jumpPow
+                else
+                    h.JumpHeight = S.jumpPow / 3.5
                 end
             end
-            break
         end)
     end
 end)
-task.spawn(function()
-    while task.wait(5) do
-        if _G.AutoSave then
-            saveCurrentConfig()
-        end
+
+--=====================================================================
+-- anti-afk
+--=====================================================================
+LP.Idled:Connect(function()
+    if S.antiafk then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0, 0))
     end
 end)
-UserInputService.JumpRequest:Connect(function()
-    if _G.InfiniteJump then
-        local char
-        local hum
-        char = LocalPlayer.Character
-        hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
-        break
+
+--=====================================================================
+-- spin
+--=====================================================================
+RunService.RenderStepped:Connect(function()
+    local c, h, r = char()
+    if not h then return end
+    if S.spin then
+        h.AutoRotate = false
+        if r then r.CFrame = r.CFrame * CFrame.Angles(0, math.rad(35), 0) end
+    elseif not h.AutoRotate then
+        h.AutoRotate = true
     end
 end)
+
+--=====================================================================
+-- sword orbit
+--=====================================================================
 task.spawn(function()
-    while task.wait(0.1) do
-        if _G.MagnetEnabled and not _G.AFKFarmEnabled then
+    while task.wait() do
+        if S.orbit then
             pcall(function()
-                local char
-                local myHRP
-                char = LocalPlayer.Character
-                myHRP = getEnemyHRP(char)
-                if not myHRP then
-                    return
-                end
-                for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj:IsA("Humanoid") and (obj.Health > 0) then
-                        local FlatIdent_3CF01 = 0
-                        local enemyModel
-                        while true do
-                            if FlatIdent_3CF01 == 0 then
-                                enemyModel = obj.Parent
-                                if enemyModel and (enemyModel ~= char) then
-                                    local enemyHRP = getEnemyHRP(enemyModel)
-                                    if
-                                        enemyHRP
-                                        and not enemyModel:FindFirstChildOfClass("ForceField")
-                                        and not enemyHRP.Anchored
-                                    then
-                                        enemyHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, -_G.MagnetDistance)
-                                        enemyHRP.AssemblyLinearVelocity = Vector3.zero
-                                        enemyHRP.AssemblyAngularVelocity = Vector3.zero
-                                    end
-                                end
-                                break
-                            end
-                        end
-                    end
-                end
-                break
+                local c, h, r = char()
+                if not r then return end
+                local t = c:FindFirstChildOfClass("Tool")
+                local hd = t and (t:FindFirstChild("Handle") or t:FindFirstChildOfClass("BasePart"))
+                if not hd then return end
+                S.orbitAng2 = S.orbitAng2 + 0.2
+                local rad = 4.5
+                local x = math.cos(S.orbitAng2) * rad
+                local z = math.sin(S.orbitAng2) * rad
+                hd.CFrame = r.CFrame
+                    * CFrame.new(x, 1, z)
+                    * CFrame.Angles(S.orbitAng2 * 2, S.orbitAng2 * 3, 0)
+                hd.AssemblyLinearVelocity = Vector3.zero
+                hd.AssemblyAngularVelocity = Vector3.zero
             end)
         end
     end
 end)
-local currentTarget = nil
-local floatVelocity = nil
-local function getValidTargets()
-    local targets
-    targets = {}
-    for _, player in pairs(Players:GetPlayers()) do
-        if (player ~= LocalPlayer) and player.Character then
-            local hum
-            local hrp
-            hum = player.Character:FindFirstChildOfClass("Humanoid")
-            hrp = getEnemyHRP(player.Character)
-            if hum and (hum.Health > 0) and hrp and not player.Character:FindFirstChildOfClass("ForceField") then
-                table.insert(targets, player.Character)
+
+--=====================================================================
+-- afk farm
+--=====================================================================
+local function getTargets()
+    local list = {}
+    local me = LP.Character
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local h = p.Character:FindFirstChildOfClass("Humanoid")
+            local r = hrp(p.Character)
+            if h and h.Health > 0 and r
+                and not p.Character:FindFirstChildOfClass("ForceField") then
+                table.insert(list, p.Character)
             end
-            break
         end
     end
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") and (obj ~= LocalPlayer.Character) then
-            local hum
-            local hrp
-            hum = obj:FindFirstChildOfClass("Humanoid")
-            hrp = getEnemyHRP(obj)
-            if hum and (hum.Health > 0) and hrp and not Players:GetPlayerFromCharacter(obj) then
-                local alreadyAdded
-                alreadyAdded = false
-                for _, t in ipairs(targets) do
-                    if t == obj then
-                        alreadyAdded = true
-                        break
-                    end
+    for _, o in ipairs(workspace:GetDescendants()) do
+        if o:IsA("Model") and o ~= me then
+            local h = o:FindFirstChildOfClass("Humanoid")
+            local r = hrp(o)
+            if h and h.Health > 0 and r
+                and not Players:GetPlayerFromCharacter(o)
+                and not o:FindFirstChildOfClass("ForceField") then
+                local dup = false
+                for _, t in ipairs(list) do
+                    if t == o then dup = true break end
                 end
-                if not alreadyAdded then
-                    table.insert(targets, obj)
-                end
-                break
+                if not dup then table.insert(list, o) end
             end
-            break
         end
     end
-    return targets
+    return list
 end
+
 task.spawn(function()
     while task.wait(0.05) do
-        if _G.AFKFarmEnabled then
+        if S.afk then
             pcall(function()
-                local myChar
-                local myHRP
-                myChar = LocalPlayer.Character
-                myHRP = myChar and getEnemyHRP(myChar)
-                if myHRP then
-                    local tool
-                    if not floatVelocity or (floatVelocity.Parent ~= myHRP) then
-                        if floatVelocity then
-                            floatVelocity:Destroy()
-                        end
-                        floatVelocity = Instance.new("BodyVelocity")
-                        floatVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                        floatVelocity.Velocity = Vector3.zero
-                        floatVelocity.Parent = myHRP
-                        break
-                    end
-                    if myHRP.Position.Y < 500 then
-                        myHRP.CFrame = myHRP.CFrame + Vector3.new(0, 100, 0)
-                    end
-                    if
-                        not currentTarget
-                        or not currentTarget.Parent
-                        or not currentTarget:FindFirstChildOfClass("Humanoid")
-                        or (currentTarget:FindFirstChildOfClass("Humanoid").Health <= 0)
-                    then
-                        local targets
-                        if currentTarget then
-                            local FlatIdent_8E5B4 = 0
-                            local oldHRP
-                            while true do
-                                if FlatIdent_8E5B4 == 0 then
-                                    oldHRP = getEnemyHRP(currentTarget)
-                                    if oldHRP then
-                                        oldHRP.Anchored = false
-                                    end
-                                    break
-                                end
-                            end
-                        end
-                        targets = getValidTargets()
-                        if #targets > 0 then
-                            local newHRP
-                            currentTarget = targets[math.random(1, #targets)]
-                            newHRP = getEnemyHRP(currentTarget)
-                            if newHRP then
-                                newHRP.Anchored = true
-                            end
-                            break
-                        else
-                            currentTarget = nil
-                        end
-                        break
-                    end
-                    if currentTarget then
-                        local targetHRP
-                        local hum
-                        targetHRP = getEnemyHRP(currentTarget)
-                        hum = currentTarget:FindFirstChildOfClass("Humanoid")
-                        if targetHRP and hum and (hum.Health > 0) then
-                            local FlatIdent_94AF7 = 0
-                            while true do
-                                if FlatIdent_94AF7 == 0 then
-                                    targetHRP.Anchored = true
-                                    targetHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, -2)
-                                    break
-                                end
-                            end
-                        else
-                            local FlatIdent_7126B = 0
-                            while true do
-                                if 0 == FlatIdent_7126B then
-                                    if targetHRP then
-                                        targetHRP.Anchored = false
-                                    end
-                                    currentTarget = nil
-                                    break
-                                end
-                            end
-                        end
-                        break
-                    end
-                    tool = myChar:FindFirstChildOfClass("Tool")
-                    if not tool and LocalPlayer:FindFirstChild("Backpack") then
-                        local FlatIdent_4E551 = 0
-                        local backpackItems
-                        while true do
-                            if FlatIdent_4E551 == 0 then
-                                backpackItems = LocalPlayer.Backpack:GetChildren()
-                                if #backpackItems > 0 then
-                                    for _, item in ipairs(backpackItems) do
-                                        if item:IsA("Tool") then
-                                            item.Parent = myChar
-                                            tool = item
-                                            break
-                                        end
-                                    end
-                                end
-                                break
-                            end
-                        end
-                    end
-                    if tool then
-                        tool:Activate()
-                    end
-                    break
+                local c, h, r = char()
+                if not r then return end
+
+                if not S.afkFloat or S.afkFloat.Parent ~= r then
+                    if S.afkFloat then S.afkFloat:Destroy() end
+                    S.afkFloat = Instance.new("BodyVelocity")
+                    S.afkFloat.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    S.afkFloat.Velocity = Vector3.zero
+                    S.afkFloat.Parent = r
                 end
-                break
+
+                if r.Position.Y < 500 then
+                    r.CFrame = r.CFrame + Vector3.new(0, 100, 0)
+                end
+
+                if not S.afkTarget
+                    or not S.afkTarget.Parent
+                    or not S.afkTarget:FindFirstChildOfClass("Humanoid")
+                    or S.afkTarget:FindFirstChildOfClass("Humanoid").Health <= 0 then
+                    if S.afkTarget then
+                        local old = hrp(S.afkTarget)
+                        if old then old.Anchored = false end
+                    end
+                    local list = getTargets()
+                    if #list > 0 then
+                        S.afkTarget = list[math.random(1, #list)]
+                        local nr = hrp(S.afkTarget)
+                        if nr then nr.Anchored = true end
+                    else
+                        S.afkTarget = nil
+                    end
+                end
+
+                if S.afkTarget then
+                    local tr = hrp(S.afkTarget)
+                    local th = S.afkTarget:FindFirstChildOfClass("Humanoid")
+                    if tr and th and th.Health > 0 then
+                        tr.Anchored = true
+                        tr.CFrame = r.CFrame * CFrame.new(0, 0, -2)
+                    else
+                        if tr then tr.Anchored = false end
+                        S.afkTarget = nil
+                    end
+                end
+
+                local tool = c:FindFirstChildOfClass("Tool")
+                if not tool then
+                    local bp = LP:FindFirstChild("Backpack")
+                    if bp then
+                        for _, x in ipairs(bp:GetChildren()) do
+                            if x:IsA("Tool") then x.Parent = c tool = x break end
+                        end
+                    end
+                end
+                if tool then tool:Activate() end
             end)
         else
-            if floatVelocity then
-                local FlatIdent_10550 = 0
-                while true do
-                    if 0 == FlatIdent_10550 then
-                        floatVelocity:Destroy()
-                        floatVelocity = nil
-                        break
-                    end
-                end
-            end
-            if currentTarget then
-                local hrp = getEnemyHRP(currentTarget)
-                if hrp then
-                    hrp.Anchored = false
-                end
-                currentTarget = nil
+            if S.afkFloat then S.afkFloat:Destroy() S.afkFloat = nil end
+            if S.afkTarget then
+                local r = hrp(S.afkTarget)
+                if r then r.Anchored = false end
+                S.afkTarget = nil
             end
         end
     end
 end)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "NoobMayhemUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = ParentGui
-local NotifHolder = Instance.new("Frame")
-NotifHolder.Name = "NotifHolder"
-NotifHolder.Size = UDim2.new(0, 240, 1, -20)
-NotifHolder.Position = UDim2.new(1, -250, 0, 10)
-NotifHolder.BackgroundTransparency = 1
-NotifHolder.ZIndex = 20
-NotifHolder.Parent = ScreenGui
-local NotifLayout = Instance.new("UIListLayout")
-NotifLayout.SortOrder = Enum.SortOrder.LayoutOrder
-NotifLayout.Padding = UDim.new(0, 8)
-NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-NotifLayout.Parent = NotifHolder
-local function sendNotification(text, isOn)
-    local msg
-    local frame
-    local stroke
-    local corner
-    local txt
-    msg = ((type(isOn) == "boolean") and (text .. ((isOn and " Enabled") or " Disabled"))) or text
-    frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 38)
-    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-    frame.BackgroundTransparency = 1
-    frame.ZIndex = 21
-    frame.Parent = NotifHolder
-    stroke = Instance.new("UIStroke")
-    stroke.Color = CurrentThemeColor
-    stroke.Thickness = 1.5
-    stroke.Parent = frame
-    table.insert(ThemeStrokes, stroke)
-    corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = frame
-    txt = Instance.new("TextLabel")
-    txt.Size = UDim2.new(1, -16, 1, 0)
-    txt.Position = UDim2.new(0, 8, 0, 0)
-    txt.BackgroundTransparency = 1
-    txt.Text = msg
-    txt.TextColor3 = Color3.fromRGB(240, 240, 240)
-    txt.Font = Enum.Font.GothamMedium
-    txt.TextSize = 11
-    txt.ZIndex = 22
-    txt.Parent = frame
-    TweenService:Create(frame, TweenInfo.new(0.3), {
-        BackgroundTransparency = 0.1,
-    }):Play()
-    task.delay(2.5, function()
-        local tw
-        tw = TweenService:Create(frame, TweenInfo.new(0.3), {
-            BackgroundTransparency = 1,
-        })
-        tw:Play()
-        tw.Completed:Connect(function()
-            frame:Destroy()
-        end)
-        break
-    end)
-    break
+
+--=====================================================================
+-- animations
+--=====================================================================
+local function stopAnim()
+    if S.animConn then S.animConn:Disconnect() S.animConn = nil end
+    S.animName = "None"
+    local c = LP.Character
+    if c then
+        local a = c:FindFirstChild("Animate")
+        if a then a.Disabled = false end
+        for _, m in ipairs(c:GetDescendants()) do
+            if m:IsA("Motor6D") then m.Transform = CFrame.identity end
+        end
+    end
 end
-local isMaximized = false
-local isAnimating = false
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Size = currentSelectedSize
-MainFrame.Position = UDim2.new(0.5, -260, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-MainFrame.BorderSizePixel = 0
-MainFrame.ClipsDescendants = true
-MainFrame.Parent = ScreenGui
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 8)
-MainCorner.Parent = MainFrame
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = CurrentThemeColor
-MainStroke.Thickness = 1.5
-MainStroke.Parent = MainFrame
-table.insert(ThemeStrokes, MainStroke)
-local TopBar = Instance.new("Frame")
-TopBar.Name = "TopBar"
-TopBar.Size = UDim2.new(1, 0, 0, 35)
-TopBar.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
-TopBar.BorderSizePixel = 0
-TopBar.ZIndex = 2
-TopBar.Parent = MainFrame
-local TopBarCorner = Instance.new("UICorner")
-TopBarCorner.CornerRadius = UDim.new(0, 8)
-TopBarCorner.Parent = TopBar
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, -110, 1, 0)
-TitleLabel.Position = UDim2.new(0, 12, 0, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "NOOB MAYHEM"
-TitleLabel.TextColor3 = CurrentThemeColor
-TitleLabel.TextSize = 15
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.ZIndex = 3
-TitleLabel.Parent = TopBar
-table.insert(ThemeTexts, TitleLabel)
-local function applyTheme(color)
-    CurrentThemeColor = color
-    for _, s in pairs(ThemeStrokes) do
-        if s and s.Parent then
-            s.Color = color
+
+local function playAnim(name)
+    stopAnim()
+    S.animName = name
+    local c = LP.Character
+    if not c then return end
+    local a = c:FindFirstChild("Animate")
+    if a then a.Disabled = true end
+
+    local joints = {}
+    for _, o in ipairs(c:GetDescendants()) do
+        if o:IsA("Motor6D") then joints[o.Name] = o end
+    end
+
+    local t = 0
+    S.animConn = RunService.RenderStepped:Connect(function()
+        local cur = LP.Character
+        if not cur or not cur:FindFirstChildOfClass("Humanoid") then
+            stopAnim()
+            return
         end
-    end
-    for _, f in pairs(ThemeFills) do
-        if f and f.Parent then
-            f.BackgroundColor3 = color
+        t = t + 0.25
+        local n = S.animName
+
+        if n == "Spaz" then
+            if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(math.sin(t*15)*3, math.cos(t*10)*2, 0) end
+            if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(math.cos(t*15)*3, math.sin(t*10)*2, 0) end
+            if joints["Neck"] then joints["Neck"].Transform = CFrame.Angles(math.sin(t*20), math.cos(t*15), 0) end
+            if joints["Right Hip"] then joints["Right Hip"].Transform = CFrame.Angles(math.cos(t*12), 0, 0) end
+            if joints["Left Hip"] then joints["Left Hip"].Transform = CFrame.Angles(math.sin(t*12), 0, 0) end
+
+        elseif n == "Neck Drill" then
+            if joints["Neck"] then joints["Neck"].Transform = CFrame.Angles(0, t*12, 0) end
+            if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(90), 0, 0) end
+            if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(90), 0, 0) end
+
+        elseif n == "Broken Spine" then
+            if joints["RootJoint"] then joints["RootJoint"].Transform = CFrame.Angles(math.rad(-85), 0, 0) end
+            if joints["Neck"] then joints["Neck"].Transform = CFrame.Angles(math.rad(90), 0, 0) end
+            if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(180), 0, 0) end
+            if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(180), 0, 0) end
+
+        elseif n == "Tpose" then
+            if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(0, 0, math.rad(90) + math.sin(t*30)*0.4) end
+            if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(0, 0, math.rad(-90) - math.sin(t*30)*0.4) end
+            if joints["RootJoint"] then joints["RootJoint"].Transform = CFrame.Angles(0, t*25, 0) end
+
+        elseif n == "Faceplant" then
+            if joints["RootJoint"] then joints["RootJoint"].Transform = CFrame.Angles(math.rad(90), math.sin(t*10)*1.5, 0) end
+            if joints["Neck"] then joints["Neck"].Transform = CFrame.Angles(math.rad(-45), 0, 0) end
+            if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(-90), 0, 0) end
+            if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(-90), 0, 0) end
         end
-    end
-    for _, t in pairs(ThemeTexts) do
-        if t and t.Parent then
-            t.TextColor3 = color
-        end
-    end
-    if activeTabBtn then
-        activeTabBtn.BackgroundColor3 = color
-    end
-    break
+    end)
 end
-local normalCircleSize = UDim2.new(0, 55, 0, 55)
-local MinCircle = Instance.new("ImageButton")
-MinCircle.Name = "MinCircle"
-MinCircle.Size = UDim2.new(0, 0, 0, 0)
-MinCircle.Position = UDim2.new(0, 25, 0.25, 0)
-MinCircle.BackgroundColor3 = Color3.fromRGB(255, 212, 0)
-MinCircle.Image = "rbxassetid://130833918"
-MinCircle.Visible = false
-MinCircle.ZIndex = 10
-MinCircle.Parent = ScreenGui
-local CircleCorner = Instance.new("UICorner")
-CircleCorner.CornerRadius = UDim.new(1, 0)
-CircleCorner.Parent = MinCircle
-local ControlContainer = Instance.new("Frame")
-ControlContainer.Size = UDim2.new(0, 90, 0, 25)
-ControlContainer.Position = UDim2.new(1, -95, 0, 5)
-ControlContainer.BackgroundTransparency = 1
-ControlContainer.ZIndex = 3
-ControlContainer.Parent = TopBar
-local ControlLayout = Instance.new("UIListLayout")
-ControlLayout.FillDirection = Enum.FillDirection.Horizontal
-ControlLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-ControlLayout.Padding = UDim.new(0, 5)
-ControlLayout.Parent = ControlContainer
-local function createHeaderButton(text, hoverColor)
-    local btn
-    local corner
-    btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 25, 0, 25)
-    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 13
-    btn.ZIndex = 3
-    btn.Parent = ControlContainer
-    corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
-    corner.Parent = btn
-    btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = hoverColor
-    end)
-    btn.MouseLeave:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-    end)
-    return btn
-end
-local MinimizeBtn = createHeaderButton("-", Color3.fromRGB(80, 80, 90))
-local MaximizeBtn = createHeaderButton("❐", Color3.fromRGB(80, 80, 90))
-local CloseBtn = createHeaderButton("X", Color3.fromRGB(220, 35, 45))
-local SideBar = Instance.new("Frame")
-SideBar.Size = UDim2.new(0, 130, 1, -35)
-SideBar.Position = UDim2.new(0, 0, 0, 35)
-SideBar.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
-SideBar.BorderSizePixel = 0
-SideBar.ZIndex = 2
-SideBar.Parent = MainFrame
-local SideBarList = Instance.new("UIListLayout")
-SideBarList.SortOrder = Enum.SortOrder.LayoutOrder
-SideBarList.Padding = UDim.new(0, 5)
-SideBarList.Parent = SideBar
-local SideBarPadding = Instance.new("UIPadding")
-SideBarPadding.PaddingTop = UDim.new(0, 10)
-SideBarPadding.PaddingLeft = UDim.new(0, 8)
-SideBarPadding.PaddingRight = UDim.new(0, 8)
-SideBarPadding.Parent = SideBar
-local ContentContainer = Instance.new("Frame")
-ContentContainer.Size = UDim2.new(1, -130, 1, -35)
-ContentContainer.Position = UDim2.new(0, 130, 0, 35)
-ContentContainer.BackgroundTransparency = 1
-ContentContainer.ZIndex = 2
-ContentContainer.Parent = MainFrame
-MinimizeBtn.MouseButton1Click:Connect(function()
-    local targetSize
-    local shrink
-    if isAnimating then
-        return
-    end
-    isAnimating = true
-    targetSize = (isMaximized and maximizedSize) or currentSelectedSize
-    shrink = TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-        Size = UDim2.new(0, 0, 0, 0),
-    })
-    shrink:Play()
-    shrink.Completed:Connect(function()
-        local pop
-        MainFrame.Visible = false
-        MainFrame.Size = targetSize
-        MinCircle.Visible = true
-        pop = TweenService:Create(MinCircle, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = normalCircleSize,
-        })
-        pop:Play()
-        pop.Completed:Connect(function()
-            isAnimating = false
-        end)
-        break
-    end)
-    break
-end)
-MinCircle.MouseButton1Click:Connect(function()
-    local shrinkCircle
-    if isAnimating then
-        return
-    end
-    isAnimating = true
-    shrinkCircle = TweenService:Create(MinCircle, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-        Size = UDim2.new(0, 0, 0, 0),
-    })
-    shrinkCircle:Play()
-    shrinkCircle.Completed:Connect(function()
-        MinCircle.Visible = false
-        MainFrame.Size = UDim2.new(0, 0, 0, 0)
-        MainFrame.Visible = true
-        local targetSize = (isMaximized and maximizedSize) or currentSelectedSize
-        local popMain =
-            TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                Size = targetSize,
-            })
-        popMain:Play()
-        popMain.Completed:Connect(function()
-            isAnimating = false
-        end)
-    end)
-    break
-end)
-MaximizeBtn.MouseButton1Click:Connect(function()
-    if isAnimating then
-        return
-    end
-    isMaximized = not isMaximized
-    TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Size = ((isMaximized and maximizedSize) or currentSelectedSize),
-    }):Play()
-end)
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
-local function makeDraggable(guiObject, dragHandle)
-    local dragging
-    local dragInput
-    local dragStart
-    local startPos
-    dragHandle = dragHandle or guiObject
-    dragging, dragInput, dragStart, startPos = nil
-    dragHandle.InputBegan:Connect(function(input)
-        if
-            (input.UserInputType == Enum.UserInputType.MouseButton1) or (
-                input.UserInputType == Enum.UserInputType.Touch
-            )
-        then
-            dragging = true
-            dragStart = input.Position
-            startPos = guiObject.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-            break
+
+--=====================================================================
+-- big head
+--=====================================================================
+local function applyBigHead(on)
+    local c = LP.Character
+    if not c then return end
+    local head = c:FindFirstChild("Head")
+    if not head then return end
+    local orig = head:FindFirstChild("OrigSize")
+    if on then
+        if not orig then
+            local v = Instance.new("Vector3Value")
+            v.Name = "OrigSize"
+            v.Value = head.Size
+            v.Parent = head
         end
-    end)
-    dragHandle.InputChanged:Connect(function(input)
-        if
-            (input.UserInputType == Enum.UserInputType.MouseMovement)
-            or (input.UserInputType == Enum.UserInputType.Touch)
-        then
-            dragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if (input == dragInput) and dragging then
-            local FlatIdent_7D3C9 = 0
-            local delta
-            while true do
-                if 0 == FlatIdent_7D3C9 then
-                    delta = input.Position - dragStart
-                    guiObject.Position = UDim2.new(
-                        startPos.X.Scale,
-                        startPos.X.Offset + delta.X,
-                        startPos.Y.Scale,
-                        startPos.Y.Offset + delta.Y
-                    )
-                    break
-                end
-            end
-        end
-    end)
-    break
-end
-makeDraggable(MainFrame, TopBar)
-makeDraggable(MinCircle, MinCircle)
-local function createTabPage()
-    local page
-    local layout
-    local padding
-    page = Instance.new("ScrollingFrame")
-    page.Size = UDim2.new(1, 0, 1, 0)
-    page.BackgroundTransparency = 1
-    page.BorderSizePixel = 0
-    page.ScrollBarThickness = 3
-    page.Visible = false
-    page.ZIndex = 2
-    page.Parent = ContentContainer
-    layout = Instance.new("UIListLayout")
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, 8)
-    layout.Parent = page
-    padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 10)
-    padding.PaddingLeft = UDim.new(0, 10)
-    padding.PaddingRight = UDim.new(0, 10)
-    padding.Parent = page
-    return page
-end
-local MainFeaturesPage = createTabPage()
-local PlayerPage = createTabPage()
-local AFKPage = createTabPage()
-local SettingsPage = createTabPage()
-local FunPage = createTabPage()
-local ExtraPage = createTabPage()
-MainFeaturesPage.Visible = true
-local function createTabButton(text, page)
-    local btn
-    local corner
-    btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 32)
-    btn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(180, 180, 180)
-    btn.Font = Enum.Font.GothamMedium
-    btn.TextSize = 12
-    btn.ZIndex = 2
-    btn.Parent = SideBar
-    corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
-    corner.Parent = btn
-    btn.MouseButton1Click:Connect(function()
-        for _, child in pairs(ContentContainer:GetChildren()) do
-            if child:IsA("ScrollingFrame") then
-                child.Visible = false
-            end
-        end
-        for _, child in pairs(SideBar:GetChildren()) do
-            if child:IsA("TextButton") then
-                local FlatIdent_974E = 0
-                while true do
-                    if FlatIdent_974E == 0 then
-                        child.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-                        child.TextColor3 = Color3.fromRGB(180, 180, 180)
-                        break
-                    end
-                end
-            end
-        end
-        page.Visible = true
-        activeTabBtn = btn
-        btn.BackgroundColor3 = CurrentThemeColor
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        break
-    end)
-    return btn
-end
-local MainTabBtn = createTabButton("Main Features", MainFeaturesPage)
-local PlayerTabBtn = createTabButton("Player", PlayerPage)
-local AFKTabBtn = createTabButton("AFK Farm", AFKPage)
-local SettingsTabBtn = createTabButton("Settings", SettingsPage)
-local FunTabBtn = createTabButton("Fun", FunPage)
-local ExtraTabBtn = createTabButton("Extra", ExtraPage)
-activeTabBtn = MainTabBtn
-MainTabBtn.BackgroundColor3 = CurrentThemeColor
-MainTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-local function createToggle(parent, id, title, default, callback)
-    local frame
-    local corner
-    local label
-    local track
-    local trackCorner
-    local knob
-    local knobCorner
-    local state
-    local updateState
-    frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -5, 0, 40)
-    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    frame.ZIndex = 2
-    frame.Parent = parent
-    corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = frame
-    label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -60, 1, 0)
-    label.Position = UDim2.new(0, 10, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = title
-    label.TextColor3 = Color3.fromRGB(230, 230, 230)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 13
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.ZIndex = 2
-    label.Parent = frame
-    track = Instance.new("TextButton")
-    track.Size = UDim2.new(0, 42, 0, 22)
-    track.Position = UDim2.new(1, -50, 0.5, -11)
-    track.BackgroundColor3 = (default and CurrentThemeColor) or Color3.fromRGB(45, 45, 52)
-    track.Text = ""
-    track.ZIndex = 2
-    track.Parent = frame
-    if default then
-        table.insert(ThemeFills, track)
-    end
-    trackCorner = Instance.new("UICorner")
-    trackCorner.CornerRadius = UDim.new(1, 0)
-    trackCorner.Parent = track
-    knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0, 16, 0, 16)
-    knob.Position = (default and UDim2.new(1, -19, 0.5, -8)) or UDim2.new(0, 3, 0.5, -8)
-    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    knob.ZIndex = 3
-    knob.Parent = track
-    knobCorner = Instance.new("UICorner")
-    knobCorner.CornerRadius = UDim.new(1, 0)
-    knobCorner.Parent = knob
-    state = default
-    updateState = nil
-    function updateState(newState, suppressNotif)
-        state = newState
-        TweenService:Create(knob, TweenInfo.new(0.25), {
-            Position = ((state and UDim2.new(1, -19, 0.5, -8)) or UDim2.new(0, 3, 0.5, -8)),
-        }):Play()
-        TweenService:Create(track, TweenInfo.new(0.25), {
-            BackgroundColor3 = ((state and CurrentThemeColor) or Color3.fromRGB(45, 45, 52)),
-        }):Play()
-        callback(state)
-        if not suppressNotif then
-            sendNotification(title, state)
-        end
-        if _G.AutoSave and (id ~= "AutoSave") then
-            saveCurrentConfig()
-        end
-    end
-    track.MouseButton1Click:Connect(function()
-        updateState(not state)
-    end)
-    UIControls[id] = {
-        Set = updateState,
-        GetValue = function()
-            return state
-        end,
-    }
-    break
-end
-local function createSlider(parent, id, title, min, max, default, callback)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -5, 0, 50)
-    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    frame.ZIndex = 2
-    frame.Parent = parent
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = frame
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -60, 0, 22)
-    label.Position = UDim2.new(0, 10, 0, 4)
-    label.BackgroundTransparency = 1
-    label.Text = title
-    label.TextColor3 = Color3.fromRGB(230, 230, 230)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 12
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.ZIndex = 2
-    label.Parent = frame
-    local valLabel = Instance.new("TextLabel")
-    valLabel.Size = UDim2.new(0, 45, 0, 22)
-    valLabel.Position = UDim2.new(1, -50, 0, 4)
-    valLabel.BackgroundTransparency = 1
-    valLabel.Text = tostring(default)
-    valLabel.TextColor3 = CurrentThemeColor
-    valLabel.Font = Enum.Font.GothamBold
-    valLabel.TextSize = 12
-    valLabel.TextXAlignment = Enum.TextXAlignment.Right
-    valLabel.ZIndex = 2
-    valLabel.Parent = frame
-    table.insert(ThemeTexts, valLabel)
-    local track = Instance.new("Frame")
-    track.Size = UDim2.new(1, -20, 0, 6)
-    track.Position = UDim2.new(0, 10, 0, 32)
-    track.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-    track.ZIndex = 2
-    track.Parent = frame
-    local trackCorner = Instance.new("UICorner")
-    trackCorner.CornerRadius = UDim.new(1, 0)
-    trackCorner.Parent = track
-    local fill = Instance.new("Frame")
-    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-    fill.BackgroundColor3 = CurrentThemeColor
-    fill.ZIndex = 2
-    fill.Parent = track
-    table.insert(ThemeFills, fill)
-    local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(1, 0)
-    fillCorner.Parent = fill
-    local sliding = false
-    local currentValue = default
-    local function update(input)
-        local pos
-        pos = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-        currentValue = math.floor(min + ((max - min) * pos))
-        fill.Size = UDim2.new(pos, 0, 1, 0)
-        valLabel.Text = tostring(currentValue)
-        callback(currentValue)
-        break
-    end
-    track.InputBegan:Connect(function(input)
-        if
-            (input.UserInputType == Enum.UserInputType.MouseButton1) or (
-                input.UserInputType == Enum.UserInputType.Touch
-            )
-        then
-            local FlatIdent_80652 = 0
-            while true do
-                if FlatIdent_80652 == 0 then
-                    sliding = true
-                    update(input)
-                    break
-                end
-            end
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if
-            sliding
-            and (
-                (input.UserInputType == Enum.UserInputType.MouseMovement)
-                or (input.UserInputType == Enum.UserInputType.Touch)
-            )
-        then
-            update(input)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if
-            (input.UserInputType == Enum.UserInputType.MouseButton1) or (
-                input.UserInputType == Enum.UserInputType.Touch
-            )
-        then
-            if sliding then
-                local FlatIdent_2A1A = 0
-                while true do
-                    if 0 == FlatIdent_2A1A then
-                        sliding = false
-                        if _G.AutoSave then
-                            saveCurrentConfig()
-                        end
-                        break
-                    end
-                end
-            end
-        end
-    end)
-    UIControls[id] = {
-        Set = function(val)
-            currentValue = val
-            fill.Size = UDim2.new(math.clamp((val - min) / (max - min), 0, 1), 0, 1, 0)
-            valLabel.Text = tostring(val)
-            callback(val)
-        end,
-        GetValue = function()
-            return currentValue
-        end,
-    }
-end
-local function createButton(parent, title, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -5, 0, 36)
-    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    btn.Text = title
-    btn.TextColor3 = Color3.fromRGB(230, 230, 230)
-    btn.Font = Enum.Font.GothamMedium
-    btn.TextSize = 13
-    btn.ZIndex = 2
-    btn.Parent = parent
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = btn
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = CurrentThemeColor
-    stroke.Thickness = 1
-    stroke.Parent = btn
-    table.insert(ThemeStrokes, stroke)
-    btn.MouseButton1Click:Connect(callback)
-    return btn
-end
-local function createScrollDropdown(parent, title, options, callback)
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, -5, 0, 120)
-    container.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    container.ZIndex = 2
-    container.Parent = parent
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = container
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -10, 0, 24)
-    label.Position = UDim2.new(0, 10, 0, 4)
-    label.BackgroundTransparency = 1
-    label.Text = title
-    label.TextColor3 = Color3.fromRGB(230, 230, 230)
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 12
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.ZIndex = 2
-    label.Parent = container
-    local scroll = Instance.new("ScrollingFrame")
-    scroll.Size = UDim2.new(1, -20, 0, 80)
-    scroll.Position = UDim2.new(0, 10, 0, 32)
-    scroll.BackgroundTransparency = 1
-    scroll.BorderSizePixel = 0
-    scroll.ScrollBarThickness = 3
-    scroll.ZIndex = 2
-    scroll.Parent = container
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 4)
-    listLayout.Parent = scroll
-    for name, val in pairs(options) do
-        local optBtn
-        local optCorner
-        optBtn = Instance.new("TextButton")
-        optBtn.Size = UDim2.new(1, -6, 0, 24)
-        optBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-        optBtn.Text = name
-        optBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-        optBtn.Font = Enum.Font.Gotham
-        optBtn.TextSize = 11
-        optBtn.ZIndex = 3
-        optBtn.Parent = scroll
-        optCorner = Instance.new("UICorner")
-        optCorner.CornerRadius = UDim.new(0, 4)
-        optCorner.Parent = optBtn
-        optBtn.MouseButton1Click:Connect(function()
-            local FlatIdent_4CEEC = 0
-            while true do
-                if FlatIdent_4CEEC == 0 then
-                    callback(name, val)
-                    sendNotification(title .. ": " .. name, true)
-                    break
-                end
-            end
-        end)
-        break
-    end
-    scroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 5)
-    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        scroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 5)
-    end)
-    return container
-end
-createToggle(MainFeaturesPage, "HitboxEnabled", "Hitbox Expander", false, function(v)
-    local char
-    _G.HitboxEnabled = v
-    char = LocalPlayer.Character
-    if char then
-        for _, t in pairs(char:GetChildren()) do
-            updateToolHitbox(t)
-        end
-    end
-    break
-end)
-createSlider(MainFeaturesPage, "HitboxMultiplier", "Hitbox Size", 2, 20, 12, function(v)
-    _G.HitboxMultiplier = v
-    if _G.HitboxEnabled then
-        local FlatIdent_1BC4A = 0
-        local char
-        while true do
-            if FlatIdent_1BC4A == 0 then
-                char = LocalPlayer.Character
-                if char then
-                    for _, t in pairs(char:GetChildren()) do
-                        updateToolHitbox(t)
-                    end
-                end
-                break
-            end
-        end
-    end
-end)
-createToggle(MainFeaturesPage, "MagnetEnabled", "Magnet Enemies", false, function(v)
-    _G.MagnetEnabled = v
-end)
-createSlider(MainFeaturesPage, "MagnetDistance", "Magnet Distance", 1, 10, 3, function(v)
-    _G.MagnetDistance = v
-end)
-createToggle(MainFeaturesPage, "InfiniteDash", "Infinite Dash", false, function(v)
-    _G.InfiniteDash = v
-end)
-createToggle(MainFeaturesPage, "InfiniteJump", "Infinite Jump", false, function(v)
-    _G.InfiniteJump = v
-end)
-createSlider(PlayerPage, "WalkSpeed", "WalkSpeed", 16, 250, 16, function(v)
-    _G.WalkSpeed = v
-end)
-createSlider(PlayerPage, "JumpPower", "JumpPower", 50, 300, 50, function(v)
-    _G.JumpPower = v
-end)
-createToggle(AFKPage, "AFKFarmEnabled", "AFK Farm", false, function(v)
-    _G.AFKFarmEnabled = v
-end)
-createToggle(AFKPage, "AntiAFK", "Anti-AFK", false, function(v)
-    _G.AntiAFK = v
-end)
-createToggle(SettingsPage, "AutoSave", "Auto Save Config", false, function(v)
-    _G.AutoSave = v
-end)
-local themeOptions = {
-    ["Red (Default)"] = Color3.fromRGB(220, 35, 45),
-    ["Cyan Blue"] = Color3.fromRGB(0, 190, 255),
-    ["Neon Green"] = Color3.fromRGB(45, 210, 90),
-    ["Purple Void"] = Color3.fromRGB(150, 50, 250),
-    ["Orange Gold"] = Color3.fromRGB(255, 140, 0),
-    ["Hot Pink"] = Color3.fromRGB(255, 90, 160),
-    ["Yellow Sun"] = Color3.fromRGB(255, 205, 0),
-    ["Pure White"] = Color3.fromRGB(240, 240, 240),
-}
-createScrollDropdown(SettingsPage, "Theme Color Changer", themeOptions, function(name, color)
-    applyTheme(color)
-end)
-createScrollDropdown(SettingsPage, "UI Size Changer", sizePresets, function(name, udimSize)
-    local FlatIdent_397D1 = 0
-    while true do
-        if FlatIdent_397D1 == 0 then
-            currentSelectedSize = udimSize
-            if not isMaximized then
-                TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-                    Size = currentSelectedSize,
-                }):Play()
-            end
-            break
-        end
-    end
-end)
-createToggle(FunPage, "SpinEnabled", "Character 360 Spin", false, function(v)
-    _G.SpinEnabled = v
-end)
-createToggle(FunPage, "ToolOrbitEnabled", "Circle Sword Orbit (Satellite)", false, function(v)
-    local FlatIdent_6B92D = 0
-    while true do
-        if FlatIdent_6B92D == 0 then
-            _G.ToolOrbitEnabled = v
-            if v then
-                sendNotification("Sword Satellite Enabled", true)
-            else
-                local char
-                sendNotification("Sword Satellite Disabled", false)
-                char = LocalPlayer.Character
-                if char then
-                    for _, t in pairs(char:GetChildren()) do
-                        updateToolHitbox(t)
-                    end
-                end
-                break
-            end
-            break
-        end
-    end
-end)
-local violentAnimOptions = {
-    ["None (Default)"] = "None",
-    ["1. Violent Spaz"] = "1. Violent Spaz",
-    ["2. 360 Neck Drill"] = "2. 360 Neck Drill",
-    ["3. Broken Spine Arch"] = "3. Broken Spine Arch",
-    ["4. T-Pose Vibrator"] = "4. T-Pose Vibrator",
-    ["5. Faceplant Slither"] = "5. Faceplant Floor Slither",
-}
-createScrollDropdown(FunPage, "Violent R6 Custom Animations", violentAnimOptions, function(name, val)
-    if val == "None" then
-        stopCustomAnimations()
-        sendNotification("Animations Cleared", false)
+        head.Size = head.Size * Vector3.new(2,2,2)
     else
-        applyViolentAnimation(val)
+        if orig then
+            head.Size = orig.Value
+            orig:Destroy()
+        end
     end
-end)
-createButton(FunPage, "Reset Fun States", function()
-    stopCustomAnimations()
-    _G.SpinEnabled = false
-    _G.ToolOrbitEnabled = false
-    sendNotification("All Fun States Reset", false)
-    break
-end)
-createButton(ExtraPage, "Rejoin Server", function()
-    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-end)
-createButton(ExtraPage, "Server Hop", function()
-    pcall(function()
-        local servers = HttpService:JSONDecode(
-            game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/0?sortOrder=Asc&limit=100")
-        ).data
-        for _, s in ipairs(servers) do
-            if (s.playing < s.maxPlayers) and (s.id ~= game.JobId) then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id)
-                break
+end
+
+--=====================================================================
+-- rainbow body
+--=====================================================================
+task.spawn(function()
+    while task.wait(0.1) do
+        if S.rainbow then
+            local c = LP.Character
+            if c then
+                for _, p in ipairs(c:GetChildren()) do
+                    if p:IsA("BasePart") then
+                        p.Color = Color3.fromHSV(tick() % 1, 1, 1)
+                    end
+                end
             end
         end
-    end)
+    end
 end)
-sendNotification("Noob Mayhem UI Loaded!", true)
+
+--=====================================================================
+-- autosave
+--=====================================================================
+local CFG = "NoobMayhem_Config.json"
+local function saveCfg()
+    if not writefile then return end
+    local d = {
+        hitbox = S.hitbox, hitboxMul = S.hitboxMul,
+        magnet = S.magnet, magnetDist = S.magnetDist,
+        dash = S.dash, jump = S.jump,
+        speed = S.speed, jumpPow = S.jumpPow,
+        afk = S.afk, antiafk = S.antiafk,
+        spin = S.spin, orbit = S.orbit,
+    }
+    pcall(function()
+        writefile(CFG, HttpService:JSONEncode(d))
+    end)
+end
+
+task.spawn(function()
+    while task.wait(5) do
+        if S.autosave then saveCfg() end
+    end
+end)
+
+--=====================================================================
+-- respawn
+--=====================================================================
+LP.CharacterAdded:Connect(function()
+    task.wait(1)
+    if S.npcOn then fixCam() end
+end)
+
+--=====================================================================
+-- UI
+--=====================================================================
+MainTab:CreateToggle({
+    Name = "NPC Mode",
+    Value = false,
+    Callback = function(v)
+        S.npcOn = v
+        if v then
+            fixCam()
+            startNPC()
+            Zynz:Notify({Name = "NPC", Content = "on", Duration = 3})
+        else
+            stopNPC()
+            Zynz:Notify({Name = "NPC", Content = "off", Duration = 3})
+        end
+    end
+})
+
+MainTab:CreateDropdown({
+    Name = "NPC Position",
+    Options = {"Top", "Bottom", "Orbit"},
+    CurrentOption = "Top",
+    Callback = function(v)
+        if type(v) == "table" then v = v[1] end
+        S.posMode = v
+    end
+})
+
+MainTab:CreateSlider({
+    Name = "NPC Distance", Range = {0, 5}, Value = 3, Increment = 1,
+    Callback = function(v) S.dist = v end
+})
+
+MainTab:CreateSlider({
+    Name = "orbit speed", Range = {1, 15}, Value = 5, Increment = 1,
+    Callback = function(v) S.orbitSpd = v end
+})
+
+MainTab:CreateToggle({
+    Name = "Big Hitbox",
+    Value = false,
+    Callback = function(v)
+        S.hitbox = v
+        refreshHitbox()
+    end
+})
+
+MainTab:CreateSlider({
+    Name = "Hitbox size", Range = {2, 20}, Value = 12, Increment = 1,
+    Callback = function(v)
+        S.hitboxMul = v
+        if S.hitbox then refreshHitbox() end
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "Magnet",
+    Value = false,
+    Callback = function(v) S.magnet = v end
+})
+
+MainTab:CreateSlider({
+    Name = "Magnet range", Range = {1, 10}, Value = 3, Increment = 1,
+    Callback = function(v) S.magnetDist = v end
+})
+
+MainTab:CreateToggle({
+    Name = "Infinite Dash",
+    Value = false,
+    Callback = function(v) S.dash = v end
+})
+
+MainTab:CreateToggle({
+    Name = "Infinite Jump",
+    Value = false,
+    Callback = function(v) S.jump = v end
+})
+
+PlayerTab:CreateSlider({
+    Name = "Speed", Range = {16, 250}, Value = 16, Increment = 1,
+    Callback = function(v) S.speed = v end
+})
+
+PlayerTab:CreateSlider({
+    Name = "Jump", Range = {50, 300}, Value = 50, Increment = 1,
+    Callback = function(v) S.jumpPow = v end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Spin",
+    Value = false,
+    Callback = function(v) S.spin = v end
+})
+
+MiscTab:CreateToggle({
+    Name = "AFK Farm",
+    Value = false,
+    Callback = function(v)
+        S.afk = v
+        refreshHitbox()
+    end
+})
+
+MiscTab:CreateToggle({
+    Name = "Anti-AFK",
+    Value = false,
+    Callback = function(v) S.antiafk = v end
+})
+
+MiscTab:CreateToggle({
+    Name = "Auto Save",
+    Value = false,
+    Callback = function(v) S.autosave = v end
+})
+
+MiscTab:CreateButton({
+    Name = "Rejoin",
+    Callback = function()
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP)
+    end
+})
+
+MiscTab:CreateButton({
+    Name = "Hop",
+    Callback = function()
+        pcall(function()
+            local list = HttpService:JSONDecode(
+                game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId
+                    .. "/servers/0?sortOrder=Asc&limit=100")
+            ).data
+            for _, s in ipairs(list) do
+                if s.playing < s.maxPlayers and s.id ~= game.JobId then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id)
+                    break
+                end
+            end
+        end)
+    end
+})
+
+FunTab:CreateToggle({
+    Name = "Sword Saturn",
+    Value = false,
+    Callback = function(v)
+        S.orbit = v
+        if not v then refreshHitbox() end
+    end
+})
+
+FunTab:CreateDropdown({
+    Name = "Meme Animations",
+    Options = {"None", "Spaz", "Neck Drill", "Broken Spine", "Tpose", "Faceplant"},
+    CurrentOption = "None",
+    Callback = function(v)
+        if type(v) == "table" then v = v[1] end
+        if v == "None" then
+            stopAnim()
+        else
+            playAnim(v)
+        end
+    end
+})
+
+FunTab:CreateToggle({
+    Name = "Big Head",
+    Value = false,
+    Callback = function(v)
+        S.bigHead = v
+        applyBigHead(v)
+    end
+})
+
+FunTab:CreateToggle({
+    Name = "Rainbow",
+    Value = false,
+    Callback = function(v) S.rainbow = v end
+})
+
+FunTab:CreateButton({
+    Name = "Reset All",
+    Callback = function()
+        stopAnim()
+        S.spin = false
+        S.orbit = false
+        S.bigHead = false
+        S.rainbow = false
+        applyBigHead(false)
+        refreshHitbox()
+        Zynz:Notify({Name = "Fun", Content = "reset", Duration = 3})
+    end
+})
+
+Zynz:Notify({
+    Name = "NoobMayhem",
+    Content = "loaded.",
+    Duration = 5
+})
