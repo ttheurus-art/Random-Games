@@ -1,59 +1,39 @@
---=====================================================================
--- NoobMayhem (merged build) - PART 1/2
--- paste PART 2 langsung di bawah ini
---=====================================================================
-
+-- NoobMayhem - PART 1/4
 local Zynz = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/ttheurus-art/Creator/refs/heads/main/Zynz.luau"
 ))()
 
-local Window = Zynz:CreateWindow({
-    Name = "NoobMayhem",
-    MainTabTheme = "Modern"
-})
-
+local Window = Zynz:CreateWindow({Name = "NoobMayhem", MainTabTheme = "Modern"})
 local MainTab   = Window:CreateTab({Name = "Main"})
 local PlayerTab = Window:CreateTab({Name = "Player"})
 local MiscTab   = Window:CreateTab({Name = "Misc"})
 local FunTab    = Window:CreateTab({Name = "Fun"})
 
---=====================================================================
--- services
---=====================================================================
-local Players          = game:GetService("Players")
-local RunService       = game:GetService("RunService")
-local UIS              = game:GetService("UserInputService")
-local TeleportService  = game:GetService("TeleportService")
-local VirtualUser      = game:GetService("VirtualUser")
-local HttpService      = game:GetService("HttpService")
+local Players         = game:GetService("Players")
+local RunService      = game:GetService("RunService")
+local UIS             = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local VirtualUser     = game:GetService("VirtualUser")
+local HttpService     = game:GetService("HttpService")
 
 local LP = Players.LocalPlayer
 local PG = LP:WaitForChild("PlayerGui")
-
 local AllNoobs = workspace:WaitForChild("Allnoobs", 10) or Instance.new("Folder")
 
 local S = {
     npcOn = false, posMode = "Top", dist = 3, orbitSpd = 5, orbitAng = 0,
     npcTarget = nil, npcConn = nil,
-
     hitbox = false, hitboxMul = 12,
     magnet = false, magnetDist = 3,
     dash = false, jump = false,
     speed = 16, jumpPow = 50,
-
     afk = false, antiafk = false, afkFloat = nil, afkTarget = nil,
-
     spin = false, orbit = false, orbitAng2 = 0,
     animConn = nil, animName = "None",
-
     autosave = false,
-
     bigHead = false, rainbow = false,
 }
 
---=====================================================================
--- helper
---=====================================================================
 local function char()
     local c = LP.Character
     if not c then return end
@@ -78,9 +58,6 @@ local function fixCam()
     if cam then cam.CameraSubject = h end
 end
 
---=====================================================================
--- NPC system
---=====================================================================
 local function validNPC(n)
     if not n or not n.Parent then return false end
     if not n:IsDescendantOf(AllNoobs) then return false end
@@ -133,10 +110,7 @@ local function npcTick(dt)
         return
     end
     local nr = npcRoot(n)
-    if not nr then
-        S.npcTarget = nil
-        return
-    end
+    if not nr then S.npcTarget = nil return end
 
     local target
     if S.posMode == "Top" then
@@ -150,7 +124,6 @@ local function npcTick(dt)
             math.sin(S.orbitAng) * S.dist
         )
     end
-
     if target then faceTP(r, target, nr.Position) end
 end
 
@@ -160,16 +133,11 @@ local function startNPC()
 end
 
 local function stopNPC()
-    if S.npcConn then
-        S.npcConn:Disconnect()
-        S.npcConn = nil
-    end
+    if S.npcConn then S.npcConn:Disconnect() S.npcConn = nil end
     S.npcTarget = nil
 end
 
---=====================================================================
--- hitbox
---=====================================================================
+-- NoobMayhem - PART 2/4
 local function isTool(t)
     if not t or not t:IsA("Tool") then return false end
     return t:FindFirstChild("Handle") ~= nil
@@ -181,7 +149,6 @@ local function updateHitbox(t)
     local h = t:FindFirstChild("Handle") or t:FindFirstChildOfClass("BasePart")
     if not h then return end
     if S.orbit then return end
-
     if S.hitbox or S.afk then
         local sz = math.min(S.hitboxMul, 15)
         h.Size = Vector3.new(sz, sz, sz)
@@ -197,9 +164,7 @@ end
 local function refreshHitbox()
     local c = LP.Character
     if not c then return end
-    for _, t in ipairs(c:GetChildren()) do
-        updateHitbox(t)
-    end
+    for _, t in ipairs(c:GetChildren()) do updateHitbox(t) end
 end
 
 local function bindChar(c)
@@ -214,9 +179,6 @@ end
 if LP.Character then bindChar(LP.Character) end
 LP.CharacterAdded:Connect(bindChar)
 
---=====================================================================
--- magnet
---=====================================================================
 task.spawn(function()
     while task.wait(0.1) do
         if S.magnet and not S.afk then
@@ -228,8 +190,7 @@ task.spawn(function()
                         local m = obj.Parent
                         if m and m ~= c then
                             local er = hrp(m)
-                            if er and not m:FindFirstChildOfClass("ForceField")
-                                and not er.Anchored then
+                            if er and not m:FindFirstChildOfClass("ForceField") and not er.Anchored then
                                 er.CFrame = myRoot.CFrame * CFrame.new(0, 0, -S.magnetDist)
                                 er.AssemblyLinearVelocity = Vector3.zero
                                 er.AssemblyAngularVelocity = Vector3.zero
@@ -242,14 +203,6 @@ task.spawn(function()
     end
 end)
 
---=====================================================================
--- NoobMayhem - PART 2/2
--- paste ini LANGSUNG di bawah PART 1
---=====================================================================
-
---=====================================================================
--- dash
---=====================================================================
 local dashConn = nil
 local function setupDash()
     if dashConn then dashConn:Disconnect() end
@@ -262,49 +215,32 @@ local function setupDash()
                 local a = d:FindFirstChild("amount")
                 if a and a:IsA("NumberValue") then a.Value = 1 end
             end
-            if LP:GetAttribute("NoDashing") then
-                LP:SetAttribute("NoDashing", false)
-            end
+            if LP:GetAttribute("NoDashing") then LP:SetAttribute("NoDashing", false) end
         end)
     end)
 end
 setupDash()
-LP.CharacterAdded:Connect(function()
-    task.wait(1)
-    setupDash()
-end)
+LP.CharacterAdded:Connect(function() task.wait(1) setupDash() end)
 
---=====================================================================
--- infinite jump
---=====================================================================
 UIS.JumpRequest:Connect(function()
     if not S.jump then return end
     local c, h = char()
     if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
 end)
 
---=====================================================================
--- speed / jump power
---=====================================================================
 task.spawn(function()
     while task.wait(0.2) do
         pcall(function()
             local c, h = char()
             if h then
                 h.WalkSpeed = S.speed
-                if h.UseJumpPower then
-                    h.JumpPower = S.jumpPow
-                else
-                    h.JumpHeight = S.jumpPow / 3.5
-                end
+                if h.UseJumpPower then h.JumpPower = S.jumpPow
+                else h.JumpHeight = S.jumpPow / 3.5 end
             end
         end)
     end
 end)
 
---=====================================================================
--- anti-afk
---=====================================================================
 LP.Idled:Connect(function()
     if S.antiafk then
         VirtualUser:CaptureController()
@@ -312,9 +248,7 @@ LP.Idled:Connect(function()
     end
 end)
 
---=====================================================================
--- spin
---=====================================================================
+-- NoobMayhem - PART 3/4
 RunService.RenderStepped:Connect(function()
     local c, h, r = char()
     if not h then return end
@@ -326,9 +260,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
---=====================================================================
--- sword orbit
---=====================================================================
 task.spawn(function()
     while task.wait() do
         if S.orbit then
@@ -352,9 +283,6 @@ task.spawn(function()
     end
 end)
 
---=====================================================================
--- afk farm
---=====================================================================
 local function getTargets()
     local list = {}
     local me = LP.Character
@@ -362,8 +290,7 @@ local function getTargets()
         if p ~= LP and p.Character then
             local h = p.Character:FindFirstChildOfClass("Humanoid")
             local r = hrp(p.Character)
-            if h and h.Health > 0 and r
-                and not p.Character:FindFirstChildOfClass("ForceField") then
+            if h and h.Health > 0 and r and not p.Character:FindFirstChildOfClass("ForceField") then
                 table.insert(list, p.Character)
             end
         end
@@ -392,7 +319,6 @@ task.spawn(function()
             pcall(function()
                 local c, h, r = char()
                 if not r then return end
-
                 if not S.afkFloat or S.afkFloat.Parent ~= r then
                     if S.afkFloat then S.afkFloat:Destroy() end
                     S.afkFloat = Instance.new("BodyVelocity")
@@ -400,13 +326,8 @@ task.spawn(function()
                     S.afkFloat.Velocity = Vector3.zero
                     S.afkFloat.Parent = r
                 end
-
-                if r.Position.Y < 500 then
-                    r.CFrame = r.CFrame + Vector3.new(0, 100, 0)
-                end
-
-                if not S.afkTarget
-                    or not S.afkTarget.Parent
+                if r.Position.Y < 500 then r.CFrame = r.CFrame + Vector3.new(0, 100, 0) end
+                if not S.afkTarget or not S.afkTarget.Parent
                     or not S.afkTarget:FindFirstChildOfClass("Humanoid")
                     or S.afkTarget:FindFirstChildOfClass("Humanoid").Health <= 0 then
                     if S.afkTarget then
@@ -422,7 +343,6 @@ task.spawn(function()
                         S.afkTarget = nil
                     end
                 end
-
                 if S.afkTarget then
                     local tr = hrp(S.afkTarget)
                     local th = S.afkTarget:FindFirstChildOfClass("Humanoid")
@@ -434,7 +354,6 @@ task.spawn(function()
                         S.afkTarget = nil
                     end
                 end
-
                 local tool = c:FindFirstChildOfClass("Tool")
                 if not tool then
                     local bp = LP:FindFirstChild("Backpack")
@@ -457,9 +376,6 @@ task.spawn(function()
     end
 end)
 
---=====================================================================
--- animations
---=====================================================================
 local function stopAnim()
     if S.animConn then S.animConn:Disconnect() S.animConn = nil end
     S.animName = "None"
@@ -480,57 +396,39 @@ local function playAnim(name)
     if not c then return end
     local a = c:FindFirstChild("Animate")
     if a then a.Disabled = true end
-
     local joints = {}
     for _, o in ipairs(c:GetDescendants()) do
         if o:IsA("Motor6D") then joints[o.Name] = o end
     end
-
     local t = 0
     S.animConn = RunService.RenderStepped:Connect(function()
         local cur = LP.Character
         if not cur or not cur:FindFirstChildOfClass("Humanoid") then
-            stopAnim()
-            return
+            stopAnim() return
         end
         t = t + 0.25
         local n = S.animName
-
         if n == "Spaz" then
             if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(math.sin(t*15)*3, math.cos(t*10)*2, 0) end
             if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(math.cos(t*15)*3, math.sin(t*10)*2, 0) end
             if joints["Neck"] then joints["Neck"].Transform = CFrame.Angles(math.sin(t*20), math.cos(t*15), 0) end
-            if joints["Right Hip"] then joints["Right Hip"].Transform = CFrame.Angles(math.cos(t*12), 0, 0) end
-            if joints["Left Hip"] then joints["Left Hip"].Transform = CFrame.Angles(math.sin(t*12), 0, 0) end
-
         elseif n == "Neck Drill" then
             if joints["Neck"] then joints["Neck"].Transform = CFrame.Angles(0, t*12, 0) end
             if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(90), 0, 0) end
             if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(90), 0, 0) end
-
         elseif n == "Broken Spine" then
             if joints["RootJoint"] then joints["RootJoint"].Transform = CFrame.Angles(math.rad(-85), 0, 0) end
             if joints["Neck"] then joints["Neck"].Transform = CFrame.Angles(math.rad(90), 0, 0) end
-            if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(180), 0, 0) end
-            if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(180), 0, 0) end
-
         elseif n == "Tpose" then
             if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(0, 0, math.rad(90) + math.sin(t*30)*0.4) end
             if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(0, 0, math.rad(-90) - math.sin(t*30)*0.4) end
-            if joints["RootJoint"] then joints["RootJoint"].Transform = CFrame.Angles(0, t*25, 0) end
-
         elseif n == "Faceplant" then
             if joints["RootJoint"] then joints["RootJoint"].Transform = CFrame.Angles(math.rad(90), math.sin(t*10)*1.5, 0) end
             if joints["Neck"] then joints["Neck"].Transform = CFrame.Angles(math.rad(-45), 0, 0) end
-            if joints["Right Shoulder"] then joints["Right Shoulder"].Transform = CFrame.Angles(math.rad(-90), 0, 0) end
-            if joints["Left Shoulder"] then joints["Left Shoulder"].Transform = CFrame.Angles(math.rad(-90), 0, 0) end
         end
     end)
 end
 
---=====================================================================
--- big head
---=====================================================================
 local function applyBigHead(on)
     local c = LP.Character
     if not c then return end
@@ -545,17 +443,12 @@ local function applyBigHead(on)
             v.Parent = head
         end
         head.Size = head.Size * Vector3.new(2,2,2)
-    else
-        if orig then
-            head.Size = orig.Value
-            orig:Destroy()
-        end
+    elseif orig then
+        head.Size = orig.Value
+        orig:Destroy()
     end
 end
 
---=====================================================================
--- rainbow body
---=====================================================================
 task.spawn(function()
     while task.wait(0.1) do
         if S.rainbow then
@@ -571,9 +464,6 @@ task.spawn(function()
     end
 end)
 
---=====================================================================
--- autosave
---=====================================================================
 local CFG = "NoobMayhem_Config.json"
 local function saveCfg()
     if not writefile then return end
@@ -585,9 +475,7 @@ local function saveCfg()
         afk = S.afk, antiafk = S.antiafk,
         spin = S.spin, orbit = S.orbit,
     }
-    pcall(function()
-        writefile(CFG, HttpService:JSONEncode(d))
-    end)
+    pcall(function() writefile(CFG, HttpService:JSONEncode(d)) end)
 end
 
 task.spawn(function()
@@ -596,25 +484,18 @@ task.spawn(function()
     end
 end)
 
---=====================================================================
--- respawn
---=====================================================================
 LP.CharacterAdded:Connect(function()
     task.wait(1)
     if S.npcOn then fixCam() end
 end)
 
---=====================================================================
--- UI
---=====================================================================
+-- NoobMayhem - PART 4/4 : UI
 MainTab:CreateToggle({
-    Name = "NPC Mode",
-    Value = false,
+    Name = "NPC Mode", Value = false,
     Callback = function(v)
         S.npcOn = v
         if v then
-            fixCam()
-            startNPC()
+            fixCam() startNPC()
             Zynz:Notify({Name = "NPC", Content = "on", Duration = 3})
         else
             stopNPC()
@@ -644,12 +525,8 @@ MainTab:CreateSlider({
 })
 
 MainTab:CreateToggle({
-    Name = "Big Hitbox",
-    Value = false,
-    Callback = function(v)
-        S.hitbox = v
-        refreshHitbox()
-    end
+    Name = "Big Hitbox", Value = false,
+    Callback = function(v) S.hitbox = v refreshHitbox() end
 })
 
 MainTab:CreateSlider({
@@ -661,8 +538,7 @@ MainTab:CreateSlider({
 })
 
 MainTab:CreateToggle({
-    Name = "Magnet",
-    Value = false,
+    Name = "Magnet", Value = false,
     Callback = function(v) S.magnet = v end
 })
 
@@ -672,14 +548,12 @@ MainTab:CreateSlider({
 })
 
 MainTab:CreateToggle({
-    Name = "Infinite Dash",
-    Value = false,
+    Name = "Infinite Dash", Value = false,
     Callback = function(v) S.dash = v end
 })
 
 MainTab:CreateToggle({
-    Name = "Infinite Jump",
-    Value = false,
+    Name = "Infinite Jump", Value = false,
     Callback = function(v) S.jump = v end
 })
 
@@ -694,29 +568,22 @@ PlayerTab:CreateSlider({
 })
 
 PlayerTab:CreateToggle({
-    Name = "Spin",
-    Value = false,
+    Name = "Spin", Value = false,
     Callback = function(v) S.spin = v end
 })
 
 MiscTab:CreateToggle({
-    Name = "AFK Farm",
-    Value = false,
-    Callback = function(v)
-        S.afk = v
-        refreshHitbox()
-    end
+    Name = "AFK Farm", Value = false,
+    Callback = function(v) S.afk = v refreshHitbox() end
 })
 
 MiscTab:CreateToggle({
-    Name = "Anti-AFK",
-    Value = false,
+    Name = "Anti-AFK", Value = false,
     Callback = function(v) S.antiafk = v end
 })
 
 MiscTab:CreateToggle({
-    Name = "Auto Save",
-    Value = false,
+    Name = "Auto Save", Value = false,
     Callback = function(v) S.autosave = v end
 })
 
@@ -746,12 +613,8 @@ MiscTab:CreateButton({
 })
 
 FunTab:CreateToggle({
-    Name = "Sword Saturn",
-    Value = false,
-    Callback = function(v)
-        S.orbit = v
-        if not v then refreshHitbox() end
-    end
+    Name = "Sword Saturn", Value = false,
+    Callback = function(v) S.orbit = v if not v then refreshHitbox() end end
 })
 
 FunTab:CreateDropdown({
@@ -760,26 +623,17 @@ FunTab:CreateDropdown({
     CurrentOption = "None",
     Callback = function(v)
         if type(v) == "table" then v = v[1] end
-        if v == "None" then
-            stopAnim()
-        else
-            playAnim(v)
-        end
+        if v == "None" then stopAnim() else playAnim(v) end
     end
 })
 
 FunTab:CreateToggle({
-    Name = "Big Head",
-    Value = false,
-    Callback = function(v)
-        S.bigHead = v
-        applyBigHead(v)
-    end
+    Name = "Big Head", Value = false,
+    Callback = function(v) S.bigHead = v applyBigHead(v) end
 })
 
 FunTab:CreateToggle({
-    Name = "Rainbow",
-    Value = false,
+    Name = "Rainbow", Value = false,
     Callback = function(v) S.rainbow = v end
 })
 
@@ -787,18 +641,11 @@ FunTab:CreateButton({
     Name = "Reset All",
     Callback = function()
         stopAnim()
-        S.spin = false
-        S.orbit = false
-        S.bigHead = false
-        S.rainbow = false
-        applyBigHead(false)
-        refreshHitbox()
+        S.spin = false S.orbit = false
+        S.bigHead = false S.rainbow = false
+        applyBigHead(false) refreshHitbox()
         Zynz:Notify({Name = "Fun", Content = "reset", Duration = 3})
     end
 })
 
-Zynz:Notify({
-    Name = "NoobMayhem",
-    Content = "loaded.",
-    Duration = 5
-})
+Zynz:Notify({Name = "NoobMayhem", Content = "loaded.", Duration = 5})
