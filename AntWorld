@@ -1,0 +1,63 @@
+local Zynz = loadstring(game:HttpGet("https://raw.githubusercontent.com/ttheurus-art/Creator/refs/heads/main/Zynz.luau"))()
+
+local Window = Zynz:CreateWindow({
+    Name = "Dirt Controller",
+    MainTabTheme = "Modern"
+})
+
+local MainTab = Window:CreateTab({
+    Name = "Main"
+})
+
+local RunningBuild = false
+local RunningDig = false
+
+-- Get rid of dirt
+MainTab:CreateButton({
+    Name = "Get rid of dirt (hold the dirt)",
+    Callback = function()
+        RunningBuild = not RunningBuild
+
+        if RunningBuild then
+            task.spawn(function()
+                while RunningBuild do
+                    local Character = game:GetService("Players").LocalPlayer.Character
+                    local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+                    local Build = Character and Character:FindFirstChild("Build")
+                    local Event = Build and Build:FindFirstChild("RemoteEvent")
+
+                    if Root and Event then
+                        Event:FireServer(Root.Position)
+                    end
+
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+})
+
+-- Get Dirt
+MainTab:CreateButton({
+    Name = "Get Dirt (hold the shovel)",
+    Callback = function()
+        RunningDig = not RunningDig
+
+        if RunningDig then
+            task.spawn(function()
+                while RunningDig do
+                    local Character = game:GetService("Players").LocalPlayer.Character
+                    local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+                    local Dig = Character and Character:FindFirstChild("Dig")
+                    local Event = Dig and Dig:FindFirstChild("RemoteEvent")
+
+                    if Root and Event then
+                        Event:FireServer(Root.Position)
+                    end
+
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+})
