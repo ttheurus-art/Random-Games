@@ -8,7 +8,7 @@ local RunService = game:GetService("RunService")
 
 local Window = Zynz:CreateWindow({
     Name = "Ant World",
-    MainTabTheme = "Modern"
+    MainTabTheme = "Classic"
 })
 
 local MainTab = Window:CreateTab({Name = "Main"})
